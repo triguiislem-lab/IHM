@@ -1,55 +1,97 @@
-import React from "react";
-import Navbar from "./components/Navbar/Navbar";
-import NavbarBanner from "./components/Navbar/NavbarBanner";
-import Hero from "./components/Hero/Hero";
-import NumberCounter from "./components/NumberCounter/NumberCounter";
-import WhyChooseUs from "./components/WhyChooseUs/WhyChooseUs";
-import Img1 from "./assets/banner1.png";
-import Img2 from "./assets/banner2.png";
-import Banner from "./components/Banner/Banner";
-import SubjectCard from "./components/SubjectCard/SubjectCard";
-import Testimonial from "./components/Testimonial/Testimonial";
-import Footer from "./components/Footer/Footer";
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import Navbar from './components/Navbar/Navbar';
+import HomePage from './pages/HomePage';
+import CoursesPage from './pages/CoursesPage';
+import CourseDetails from './components/SubjectCard/CourseDetails';
+import Login from './pages/Auth/Login';
+import Register from './pages/Auth/Register';
+import Footer from './components/Footer/Footer';
 
+const ProtectedRoute = ({ children, allowedRoles }) => {
+	const [user, setUser] = React.useState(null);
+	const [loading, setLoading] = React.useState(true);
 
+	React.useEffect(() => {
+		const auth = getAuth();
+		const unsubscribe = onAuthStateChanged(auth, (user) => {
+			setUser(user);
+			setLoading(false);
+		});
 
-const BannerData = {
-  image: Img1,
-  tag: "CUSTOMIZE WITH YOUR SCHEDULE",
-  title: "Personalized Professional Online Tutor on Your Schedule",
-  subtitle:
-    "Our scheduling system allows you to select based on your free time. Lorem ipsum demo text for template. Keep track of your students class and tutoring schedules, and never miss your lectures. The best online class scheduling system with easy accessibility.Lorem ipsum is a placeholder text commonly used to demonstrate the visual form",
-  link: "#",
-};
+		return () => unsubscribe();
+	}, []);
 
-const BannerData2 = {
-  image: Img2,
-  tag: "CUSTOMIZE WITH YOUR SCHEDULE",
-  title: "Talented and Qualified Tutors to Serve You for Help",
-  subtitle:
-    "Our scheduling system allows you to select based on your free time. Lorem ipsum demo text for template. Keep track of your students class and tutoring schedules, and never miss your lectures. The best online class scheduling system with easy accessibility. Lorem ipsum is a placeholder text commonly used",
-  link: "#",
+	if (loading) {
+		return <div>Loading...</div>;
+	}
+
+	if (!user) {
+		return <Navigate to='/login' />;
+	}
+
+	// Add role check here if needed
+	return children;
 };
 
 const App = () => {
-  return (
-    <main className="overflow-x-hidden">
-      <Navbar />
-      <NavbarBanner />
-      <Hero />
-      <NumberCounter />
-      <WhyChooseUs />
-      <Banner {...BannerData} />
-      <Banner {...BannerData2} reverse={true} />
-      <SubjectCard />
-   
- 
-      <Testimonial />
-      <Footer />
-     
-    </main>
-    
-  );
+	return (
+		<BrowserRouter>
+			<main className='min-h-screen'>
+				<Navbar />
+				<Routes>
+					<Route
+						path='/'
+						element={<HomePage />}
+					/>
+					<Route
+						path='/courses'
+						element={<CoursesPage />}
+					/>
+					<Route
+						path='/course/:id'
+						element={<CourseDetails />}
+					/>
+					<Route
+						path='/login'
+						element={<Login />}
+					/>
+					<Route
+						path='/register'
+						element={<Register />}
+					/>
+
+					{/* Protected routes */}
+					<Route
+						path='/dashboard/student/*'
+						element={
+							<ProtectedRoute allowedRoles={['student']}>
+								{/* Add your student dashboard component here */}
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path='/dashboard/instructor/*'
+						element={
+							<ProtectedRoute allowedRoles={['instructor']}>
+								{/* Add your instructor dashboard component here */}
+							</ProtectedRoute>
+						}
+					/>
+					<Route
+						path='/dashboard/admin/*'
+						element={
+							<ProtectedRoute allowedRoles={['admin']}>
+								{/* Add your admin dashboard component here */}
+							</ProtectedRoute>
+						}
+					/>
+				</Routes>
+				<Footer />
+			</main>
+		</BrowserRouter>
+	);
 };
 
 export default App;
