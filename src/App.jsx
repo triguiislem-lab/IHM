@@ -7,6 +7,7 @@ import CoursesPage from './pages/CoursesPage';
 import CourseDetails from './components/SubjectCard/CourseDetails';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
+import ForgotPassword from './pages/Auth/ForgotPassword';
 import Footer from './components/Footer/Footer';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -60,6 +61,10 @@ const App = () => {
 					<Route
 						path='/register'
 						element={<Register />}
+					/>
+					<Route
+						path='/forgot-password'
+						element={<ForgotPassword />}
 					/>
 
 					{/* Protected routes */}
