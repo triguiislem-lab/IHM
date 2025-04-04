@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Star, Library, Users, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { fetchCoursesFromDatabase } from '../../utils/firebaseUtils';
+import {
+	fetchCoursesFromDatabase,
+	formatPrice,
+} from '../../utils/firebaseUtils';
 
 const Course = ({ course, index }) => {
 	return (
@@ -14,57 +17,57 @@ const Course = ({ course, index }) => {
 			className='bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300'>
 			<div className='relative'>
 				<img
-					src={course.image}
-					alt={course.title}
+					src={course.image || course.formationImage}
+					alt={course.titre}
 					className='w-full h-56 object-cover'
 				/>
 				<div className='absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 shadow-md'>
 					<Clock className='w-4 h-4 text-secondary' />
-					<span className='text-sm'>{course.duration}</span>
+					<span className='text-sm'>{course.duree || '0'} hours</span>
 				</div>
 			</div>
 
 			<div className='p-6'>
-				<span className='inline-block bg-primary/10 text-secondary px-4 py-1 rounded-full text-sm font-medium mb-4'>
-					{course.level}
-				</span>
+				<div className='flex justify-between items-start mb-2'>
+					<span className='px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800'>
+						{course.formationCategory || 'Course'}
+					</span>
+					<span className='flex items-center text-amber-500'>
+						<Star
+							size={16}
+							className='fill-amber-500 mr-1'
+						/>
+						<span className='font-medium'>{course.rating || 4.5}</span>
+						<span className='text-gray-400 text-xs ml-1'>
+							({course.totalRatings || 0})
+						</span>
+					</span>
+				</div>
 
 				<Link to={`/course/${course.id}`}>
 					<h3 className='text-xl font-bold mb-4 hover:text-secondary transition-colors duration-300'>
-						{course.title}
+						{course.titre}
 					</h3>
 				</Link>
 
-				<div className='flex items-center gap-2 mb-4'>
-					<div className='flex text-primary'>
-						{[...Array(5)].map((_, i) => (
-							<Star
-								key={i}
-								className={`w-4 h-4 ${
-									i < Math.round(course.rating) ? 'fill-current' : ''
-								}`}
-							/>
-						))}
-					</div>
-					<p className='text-sm text-gray-600'>
-						({course.rating}/{course.totalRatings} Rating)
-					</p>
-				</div>
+				<p className='text-gray-600 text-sm mb-4 line-clamp-2'>
+					{course.description}
+				</p>
 
 				<div className='flex justify-between items-center mb-4'>
 					<span className='text-2xl font-bold text-secondary'>
-						${course.price.toFixed(2)}
+						{course.price === 0 ? 'Free' : formatPrice(course.price || 0)}
 					</span>
 				</div>
 
 				<div className='flex items-center justify-between pt-4 border-t'>
 					<div className='flex items-center gap-2 text-gray-600'>
 						<Library className='w-4 h-4' />
-						<span className='text-sm'>{course.lessons} Lessons</span>
+						<span className='text-sm'>{course.lessons || 0} Lessons</span>
 					</div>
 					<div className='flex items-center gap-2 text-gray-600'>
 						<Users className='w-4 h-4' />
-						<span className='text-sm'>{course.students} Students</span>
+						<span className='text-sm'>{course.students || 0} Students</span>
 					</div>
 				</div>
 			</div>

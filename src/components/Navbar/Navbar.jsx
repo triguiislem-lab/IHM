@@ -14,9 +14,15 @@ import { getDatabase, ref, get } from 'firebase/database';
 
 const UserBadge = ({ userType }) => {
 	const badgeColors = {
-		student: 'bg-blue-100 text-blue-800',
-		instructor: 'bg-purple-100 text-purple-800',
-		admin: 'bg-red-100 text-red-800',
+		apprenant: 'bg-blue-100 text-blue-800',
+		formateur: 'bg-purple-100 text-purple-800',
+		administrateur: 'bg-red-100 text-red-800',
+	};
+
+	const userTypeLabels = {
+		apprenant: 'Student',
+		formateur: 'Instructor',
+		administrateur: 'Admin',
 	};
 
 	if (!userType) {
@@ -27,15 +33,12 @@ const UserBadge = ({ userType }) => {
 		);
 	}
 
-	const formattedType =
-		userType.charAt(0).toUpperCase() + userType.slice(1).toLowerCase();
-
 	return (
 		<span
 			className={`px-2 py-1 text-xs font-medium rounded-full ${
 				badgeColors[userType.toLowerCase()] || 'bg-gray-100 text-gray-800'
 			}`}>
-			{formattedType}
+			{userTypeLabels[userType.toLowerCase()] || userType}
 		</span>
 	);
 };
@@ -61,11 +64,25 @@ const UserMenu = ({ user, userType, handleLogout }) => {
 							<UserBadge userType={userType} />
 						</div>
 					</div>
-					<Link
-						to={`/dashboard/${userType}`}
-						className='block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-						Dashboard
-					</Link>
+					{userType ? (
+						<Link
+							to={`/dashboard/${
+								userType === 'apprenant'
+									? 'student'
+									: userType === 'formateur'
+									? 'instructor'
+									: userType === 'administrateur'
+									? 'admin'
+									: 'student' // Default to student dashboard if userType is unknown
+							}`}
+							className='block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+							Dashboard
+						</Link>
+					) : (
+						<div className='block px-4 py-2 text-sm text-gray-400 cursor-not-allowed'>
+							Dashboard (Not Available)
+						</div>
+					)}
 					<Link
 						to='/profile'
 						className='block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
@@ -99,16 +116,36 @@ const Navbar = () => {
 					setUser(currentUser);
 					// Fetch user type from database
 					const db = getDatabase();
-					const userRef = ref(db, `users/${currentUser.uid}`);
+					const userRef = ref(db, `Elearning/Utilisateurs/${currentUser.uid}`);
 					const snapshot = await get(userRef);
 					const userData = snapshot.val();
+					console.log('Navbar.jsx - User data from Firebase:', userData);
+					console.log('Navbar.jsx - User ID:', currentUser.uid);
+					console.log(
+						'Navbar.jsx - Database path:',
+						`Elearning/Utilisateurs/${currentUser.uid}`,
+					);
+
+					if (!userData) {
+						console.error('Navbar.jsx - No user data found in database');
+					} else if (!userData.userType) {
+						console.error(
+							'Navbar.jsx - User data found but no userType property:',
+							userData,
+						);
+					}
+
 					setUserType(userData?.userType || null);
+					console.log(
+						'Navbar.jsx - Setting userType to:',
+						userData?.userType || null,
+					);
 				} else {
 					setUser(null);
 					setUserType(null);
 				}
 			} catch (error) {
-				console.error("Error fetching user data:", error);
+				console.error('Error fetching user data:', error);
 				setUser(null);
 				setUserType(null);
 			} finally {
@@ -134,9 +171,9 @@ const Navbar = () => {
 		if (!user || !userType) return publicMenu;
 
 		const menuMap = {
-			student: [...publicMenu, ...studentMenu],
-			instructor: [...publicMenu, ...instructorMenu],
-			admin: [...publicMenu, ...adminMenu],
+			apprenant: [...publicMenu, ...studentMenu],
+			formateur: [...publicMenu, ...instructorMenu],
+			administrateur: [...publicMenu, ...adminMenu],
 		};
 
 		return menuMap[userType.toLowerCase()] || publicMenu;
@@ -144,10 +181,10 @@ const Navbar = () => {
 
 	if (loading) {
 		return (
-			<div className="container flex justify-between items-center py-6">
-				<div className="text-2xl flex items-center gap-2 font-bold">
-					<MdComputer className="text-3xl text-secondary" />
-					<Link to="/">E-Tutor</Link>
+			<div className='container flex justify-between items-center py-6'>
+				<div className='text-2xl flex items-center gap-2 font-bold'>
+					<MdComputer className='text-3xl text-secondary' />
+					<Link to='/'>E-Tutor</Link>
 				</div>
 			</div>
 		);
