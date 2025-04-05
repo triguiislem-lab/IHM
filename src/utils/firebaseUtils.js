@@ -1,5 +1,5 @@
 import { database } from '../../firebaseConfig';
-import { ref, get, push, set, update, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 // Fonction générique pour récupérer des données de Firebase
@@ -480,7 +480,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 							legacyEnrollments = [...legacyEnrollments, ...userEnrollments];
 
 							// Migrer les données vers le nouveau format
-							userEnrollments.forEach(async (enrollment) => {
+							for (const enrollment of userEnrollments) {
 								const courseId = enrollment.courseId || enrollment.course?.id || enrollment.course;
 								if (courseId) {
 									try {
@@ -504,7 +504,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 										console.error(`Error migrating enrollment for course ${courseId}:`, migrationError);
 									}
 								}
-							});
+							}
 						}
 					}
 				} catch (error) {
@@ -786,22 +786,7 @@ export const fetchCompleteUserInfo = async (userId) => {
 	}
 };
 
-// Récupérer un cours spécifique par ID (ancienne version)
-// Cette fonction est remplacée par une version plus complète ci-dessous
-const _fetchCourseByIdOld = async (courseId) => {
-	try {
-		const courseRef = ref(database, `Elearning/Cours/${courseId}`);
-		const snapshot = await get(courseRef);
-
-		if (snapshot.exists()) {
-			return snapshot.val();
-		}
-		return null;
-	} catch (error) {
-		console.error(`Error fetching course with ID ${courseId}:`, error);
-		throw error;
-	}
-};
+// Note: L'ancienne version de fetchCourseById a été supprimée car elle est remplacée par une version plus complète
 
 // Récupérer une formation spécifique par ID
 export const fetchFormationById = async (formationId) => {

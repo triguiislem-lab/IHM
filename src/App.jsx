@@ -6,6 +6,7 @@ import Navbar from "./components/Navbar/Navbar";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
 import CourseDetails from "./components/SubjectCard/CourseDetails";
+import ModulePage from "./pages/ModulePage";
 import Login from "./pages/Auth/Login";
 import Register from "./pages/Auth/Register";
 import Footer from "./components/Footer/Footer";
@@ -15,6 +16,8 @@ import EditProfile from "./pages/Profile/EditProfile";
 import StudentDashboard from "./pages/Dashboard/StudentDashboard";
 import InstructorDashboard from "./pages/Dashboard/InstructorDashboard";
 import AdminDashboard from "./pages/Dashboard/AdminDashboard";
+import DatabaseCleanup from "./pages/Admin/DatabaseCleanup";
+import MessagesPage from "./pages/Messages/MessagesPage";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const [user, setUser] = React.useState(null);
@@ -93,6 +96,7 @@ const App = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/course/:id" element={<CourseDetails />} />
+          <Route path="/course/:id/module/:moduleId" element={<ModulePage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/profile" element={<Profile />} />
@@ -121,6 +125,31 @@ const App = () => {
             element={
               <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/database-cleanup"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
+                <DatabaseCleanup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "administrateur",
+                  "formateur",
+                  "instructor",
+                  "student",
+                  "apprenant",
+                ]}
+              >
+                <MessagesPage />
               </ProtectedRoute>
             }
           />

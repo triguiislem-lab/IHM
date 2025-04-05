@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { Link, useNavigate } from "react-router-dom";
 import {
   MdExpandMore,
   MdExpandLess,
@@ -8,6 +9,7 @@ import {
   MdPlayCircle,
   MdAssignment,
   MdQuiz,
+  MdArrowForward,
 } from "react-icons/md";
 import {
   calculateCourseScore,
@@ -15,8 +17,9 @@ import {
   isCourseCompleted,
 } from "../../utils/firebaseUtils";
 
-const CourseModules = ({ course, onModuleSelect }) => {
+const CourseModules = ({ course, onModuleSelect, isEnrolled = false }) => {
   const [expandedModules, setExpandedModules] = useState({});
+  const navigate = useNavigate();
 
   // Vérifier si le cours a des modules
   const hasModules = course?.modules && course.modules.length > 0;
@@ -117,7 +120,7 @@ const CourseModules = ({ course, onModuleSelect }) => {
               }`}
               onClick={() => toggleModule(module.id)}
             >
-              <div className="flex items-center space-x-3">
+              <div className="flex-1 flex items-center space-x-3">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     module.status === "completed"
@@ -153,6 +156,23 @@ const CourseModules = ({ course, onModuleSelect }) => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isEnrolled) {
+                      navigate(`/course/${course.id}/module/${module.id}`);
+                    } else {
+                      // Si l'utilisateur n'est pas inscrit, utiliser le callback onModuleSelect
+                      if (onModuleSelect) {
+                        onModuleSelect(module);
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-1 bg-secondary text-white rounded-md hover:bg-secondary/90 transition-colors duration-300"
+                >
+                  <span>{isEnrolled ? "Accéder" : "Aperçu"}</span>
+                  <MdArrowForward size={16} />
+                </button>
                 {onModuleSelect && (
                   <button
                     onClick={(e) => {

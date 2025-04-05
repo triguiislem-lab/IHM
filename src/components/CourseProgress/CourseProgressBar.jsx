@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { getAuth } from 'firebase/auth';
-import { getDatabase, ref, get } from 'firebase/database';
+import React, { useState, useEffect } from "react";
+import { getAuth } from "firebase/auth";
+import { getDatabase, ref, get } from "firebase/database";
 
 const CourseProgressBar = ({ courseId }) => {
   const [progress, setProgress] = useState(0);
@@ -8,7 +8,7 @@ const CourseProgressBar = ({ courseId }) => {
   const [completedModules, setCompletedModules] = useState(0);
   const [totalModules, setTotalModules] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const auth = getAuth();
   const database = getDatabase();
@@ -19,7 +19,7 @@ const CourseProgressBar = ({ courseId }) => {
 
       try {
         setLoading(true);
-        setError('');
+        setError("");
 
         // Récupérer tous les modules du cours
         const modulesRef = ref(database, `Elearning/Cours/${courseId}/modules`);
@@ -33,35 +33,68 @@ const CourseProgressBar = ({ courseId }) => {
           let completed = 0;
           let totalModuleScore = 0;
 
-          // Vérifier la progression de chaque module
-          for (const moduleId of moduleIds) {
-            const progressionRef = ref(
-              database,
-              `Elearning/Progression/${auth.currentUser.uid}/${courseId}/${moduleId}`
-            );
-            const progressionSnapshot = await get(progressionRef);
+          // Vérifier d'abord s'il existe une progression globale du cours
+          const courseProgressRef = ref(
+            database,
+            `Elearning/Progression/${auth.currentUser.uid}/${courseId}`
+          );
+          const courseProgressSnapshot = await get(courseProgressRef);
 
-            if (progressionSnapshot.exists()) {
-              const moduleProgress = progressionSnapshot.val();
-              if (moduleProgress.completed) {
-                completed++;
-                totalModuleScore += moduleProgress.score || 0;
+          if (courseProgressSnapshot.exists()) {
+            const courseProgress = courseProgressSnapshot.val();
+
+            // Si la progression contient des détails complets, utiliser ces informations
+            if (
+              courseProgress.details &&
+              courseProgress.details.completedModules
+            ) {
+              setCompletedModules(courseProgress.details.completedModules);
+              setProgress(
+                (courseProgress.details.completedModules / moduleIds.length) *
+                  100
+              );
+              setTotalScore(courseProgress.score || 0);
+              setLoading(false);
+              return;
+            }
+          }
+
+          // Sinon, vérifier la progression de chaque module individuellement
+          for (const moduleId of moduleIds) {
+            try {
+              const progressionRef = ref(
+                database,
+                `Elearning/Progression/${auth.currentUser.uid}/${courseId}/${moduleId}`
+              );
+              const progressionSnapshot = await get(progressionRef);
+
+              if (progressionSnapshot.exists()) {
+                const moduleProgress = progressionSnapshot.val();
+                if (moduleProgress.completed) {
+                  completed++;
+                  // Utiliser le meilleur score disponible
+                  const moduleScore =
+                    moduleProgress.bestScore || moduleProgress.score || 0;
+                  totalModuleScore += moduleScore;
+                }
               }
+            } catch (moduleError) {
+              console.error(
+                `Error checking progression for module ${moduleId}:`,
+                moduleError
+              );
             }
           }
 
           setCompletedModules(completed);
-          
+
           // Calculer le pourcentage de progression
-          const progressPercentage = moduleIds.length > 0 
-            ? (completed / moduleIds.length) * 100 
-            : 0;
-          
+          const progressPercentage =
+            moduleIds.length > 0 ? (completed / moduleIds.length) * 100 : 0;
+
           // Calculer le score moyen
-          const averageScore = completed > 0 
-            ? totalModuleScore / completed 
-            : 0;
-          
+          const averageScore = completed > 0 ? totalModuleScore / completed : 0;
+
           setProgress(progressPercentage);
           setTotalScore(averageScore);
         } else {
@@ -71,8 +104,8 @@ const CourseProgressBar = ({ courseId }) => {
           setTotalScore(0);
         }
       } catch (error) {
-        console.error('Error fetching course progress:', error);
-        setError('Erreur lors de la récupération de la progression du cours');
+        console.error("Error fetching course progress:", error);
+        setError("Erreur lors de la récupération de la progression du cours");
       } finally {
         setLoading(false);
       }
@@ -106,14 +139,14 @@ const CourseProgressBar = ({ courseId }) => {
           {completedModules}/{totalModules} modules
         </span>
       </div>
-      
+
       <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
         <div
           className="h-4 rounded-full bg-blue-600 transition-all duration-500"
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      
+
       <div className="flex justify-between items-center">
         <div>
           <span className="text-sm text-gray-600">Progression:</span>
@@ -121,17 +154,27 @@ const CourseProgressBar = ({ courseId }) => {
         </div>
         <div>
           <span className="text-sm text-gray-600">Score moyen:</span>
-          <span className={`ml-2 font-medium ${totalScore >= 70 ? 'text-green-600' : 'text-orange-600'}`}>
+          <span
+            className={`ml-2 font-medium ${
+              totalScore >= 70 ? "text-green-600" : "text-orange-600"
+            }`}
+          >
             {totalScore.toFixed(1)}%
           </span>
         </div>
       </div>
-      
+
       {progress === 100 && (
-        <div className={`mt-4 p-3 rounded-lg text-sm ${totalScore >= 70 ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-          {totalScore >= 70 
-            ? 'Félicitations ! Vous avez complété ce cours avec succès.' 
-            : 'Vous avez terminé tous les modules, mais votre score moyen est inférieur à 70%. Essayez de refaire certains quiz pour améliorer votre score.'}
+        <div
+          className={`mt-4 p-3 rounded-lg text-sm ${
+            totalScore >= 70
+              ? "bg-green-50 text-green-700"
+              : "bg-yellow-50 text-yellow-700"
+          }`}
+        >
+          {totalScore >= 70
+            ? "Félicitations ! Vous avez complété ce cours avec succès."
+            : "Vous avez terminé tous les modules, mais votre score moyen est inférieur à 70%. Essayez de refaire certains quiz pour améliorer votre score."}
         </div>
       )}
     </div>

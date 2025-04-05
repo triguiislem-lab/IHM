@@ -7,6 +7,8 @@ import {
   MdPerson,
   MdBook,
   MdSettings,
+  MdMessage,
+  MdSchool,
 } from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
 import { motion } from "framer-motion";
@@ -169,6 +171,16 @@ const Navbar = () => {
                         Tableau de bord
                       </Link>
                     )}
+                    <Link
+                      to="/messages"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <MdMessage className="mr-2 h-5 w-5" />
+                      {userType === "formateur" || userType === "instructor"
+                        ? "Messages des étudiants"
+                        : "Contacter les formateurs"}
+                    </Link>
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

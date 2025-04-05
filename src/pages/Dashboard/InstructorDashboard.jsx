@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getAuth } from "firebase/auth";
-import { fetchCompleteUserInfo, fetchCoursesFromDatabase } from "../../utils/firebaseUtils";
-import { MdSchool, MdPeople, MdAdd } from "react-icons/md";
+import {
+  fetchCompleteUserInfo,
+  fetchCoursesFromDatabase,
+} from "../../utils/firebaseUtils";
+import { MdSchool, MdPeople, MdAdd, MdMessage } from "react-icons/md";
 import { Link } from "react-router-dom";
 
 const InstructorDashboard = () => {
@@ -25,12 +28,12 @@ const InstructorDashboard = () => {
 
           // Récupérer tous les cours
           const allCourses = await fetchCoursesFromDatabase();
-          
+
           // Filtrer les cours de l'instructeur
           const instructorCourses = allCourses.filter(
-            course => course.instructorId === auth.currentUser.uid
+            (course) => course.instructorId === auth.currentUser.uid
           );
-          
+
           setCourses(instructorCourses);
         }
       } catch (error) {
@@ -105,7 +108,10 @@ const InstructorDashboard = () => {
               <div>
                 <h3 className="text-lg font-semibold">Étudiants inscrits</h3>
                 <p className="text-3xl font-bold text-green-600">
-                  {courses.reduce((total, course) => total + (course.students || 0), 0)}
+                  {courses.reduce(
+                    (total, course) => total + (course.students || 0),
+                    0
+                  )}
                 </p>
               </div>
             </div>
@@ -131,6 +137,15 @@ const InstructorDashboard = () => {
               Mon profil
             </Link>
             <Link
+              to="/messages"
+              className="bg-amber-600 text-white p-4 rounded-lg text-center hover:bg-amber-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdMessage />
+              Messages
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <Link
               to="/courses"
               className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
             >
@@ -143,7 +158,7 @@ const InstructorDashboard = () => {
         {/* Liste des cours */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-6">Mes cours</h2>
-          
+
           {courses.length > 0 ? (
             <div className="space-y-4">
               {courses.map((course) => (

@@ -16,6 +16,12 @@ const EditProfile = () => {
     nom: "",
     email: "",
     avatar: "",
+    // Champs supplémentaires qui pourraient être présents dans Firebase
+    telephone: "",
+    adresse: "",
+    ville: "",
+    codePostal: "",
+    pays: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,11 +44,17 @@ const EditProfile = () => {
           // S'assurer que info n'est pas null avant de continuer
           if (info) {
             setUserInfo(info);
+            // Initialiser tous les champs du formulaire avec les valeurs existantes
             setFormData({
               prenom: info.prenom || "",
               nom: info.nom || "",
               email: info.email || user.email || "",
               avatar: info.roleInfo?.avatar || "",
+              telephone: info.telephone || "",
+              adresse: info.adresse || "",
+              ville: info.ville || "",
+              codePostal: info.codePostal || "",
+              pays: info.pays || "",
             });
           } else {
             console.error("User info is null");
@@ -65,6 +77,11 @@ const EditProfile = () => {
               email: user.email || "",
               avatar:
                 "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+              telephone: "",
+              adresse: "",
+              ville: "",
+              codePostal: "",
+              pays: "",
             });
           }
         } else {
@@ -120,11 +137,23 @@ const EditProfile = () => {
         database,
         `Elearning/Utilisateurs/${auth.currentUser.uid}`
       );
-      await update(userRef, {
+
+      // Préparer les données à mettre à jour
+      const userData = {
         prenom: formData.prenom,
         nom: formData.nom,
         email: formData.email,
-      });
+      };
+
+      // Ajouter les champs supplémentaires s'ils sont remplis
+      if (formData.telephone) userData.telephone = formData.telephone;
+      if (formData.adresse) userData.adresse = formData.adresse;
+      if (formData.ville) userData.ville = formData.ville;
+      if (formData.codePostal) userData.codePostal = formData.codePostal;
+      if (formData.pays) userData.pays = formData.pays;
+
+      // Mettre à jour les données utilisateur
+      await update(userRef, userData);
 
       // Mettre à jour l'avatar dans les informations spécifiques au rôle
       // Ne mettre à jour l'avatar que s'il est défini
@@ -302,6 +331,110 @@ const EditProfile = () => {
                     onChange={handleChange}
                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     placeholder="Nom"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    name="telephone"
+                    value={formData.telephone}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Téléphone"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Pays
+                  </label>
+                  <input
+                    type="text"
+                    name="pays"
+                    value={formData.pays}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Pays"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    name="telephone"
+                    value={formData.telephone}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Téléphone"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Pays
+                  </label>
+                  <input
+                    type="text"
+                    name="pays"
+                    value={formData.pays}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Pays"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Adresse
+                </label>
+                <input
+                  type="text"
+                  name="adresse"
+                  value={formData.adresse}
+                  onChange={handleChange}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  placeholder="Adresse"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Ville
+                  </label>
+                  <input
+                    type="text"
+                    name="ville"
+                    value={formData.ville}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Ville"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Code Postal
+                  </label>
+                  <input
+                    type="text"
+                    name="codePostal"
+                    value={formData.codePostal}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Code Postal"
                   />
                 </div>
               </div>

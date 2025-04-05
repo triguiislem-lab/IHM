@@ -6,7 +6,15 @@ import {
   fetchCoursesFromDatabase,
   fetchUsersFromDatabase,
 } from "../../utils/firebaseUtils";
-import { MdSchool, MdPeople, MdAdminPanelSettings, MdPerson } from "react-icons/md";
+import {
+  MdSchool,
+  MdPeople,
+  MdAdminPanelSettings,
+  MdPerson,
+  MdSettings,
+  MdStorage,
+  MdMessage,
+} from "react-icons/md";
 import { Link } from "react-router-dom";
 
 const AdminDashboard = () => {
@@ -67,9 +75,15 @@ const AdminDashboard = () => {
 
   // Compter les utilisateurs par type
   const userCounts = {
-    student: users.filter(user => user.userType === "student" || user.userType === "apprenant").length,
-    instructor: users.filter(user => user.userType === "instructor" || user.userType === "formateur").length,
-    admin: users.filter(user => user.userType === "admin" || user.userType === "administrateur").length,
+    student: users.filter(
+      (user) => user.userType === "student" || user.userType === "apprenant"
+    ).length,
+    instructor: users.filter(
+      (user) => user.userType === "instructor" || user.userType === "formateur"
+    ).length,
+    admin: users.filter(
+      (user) => user.userType === "admin" || user.userType === "administrateur"
+    ).length,
   };
 
   return (
@@ -79,7 +93,9 @@ const AdminDashboard = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold mb-8">Tableau de bord administrateur</h1>
+        <h1 className="text-3xl font-bold mb-8">
+          Tableau de bord administrateur
+        </h1>
 
         {/* Carte de bienvenue */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -165,14 +181,37 @@ const AdminDashboard = () => {
               to="/profile"
               className="bg-blue-600 text-white p-4 rounded-lg text-center hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center gap-2"
             >
-              <MdPeople />
+              <MdPerson />
               Mon profil
             </Link>
+            <Link
+              to="/admin/database-cleanup"
+              className="bg-purple-600 text-white p-4 rounded-lg text-center hover:bg-purple-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdStorage />
+              Nettoyage BDD
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
             <Link
               to="/courses"
               className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
             >
-              <MdAdminPanelSettings />
+              <MdPeople />
+              Gérer utilisateurs
+            </Link>
+            <Link
+              to="/messages"
+              className="bg-amber-600 text-white p-4 rounded-lg text-center hover:bg-amber-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdMessage />
+              Messages
+            </Link>
+            <Link
+              to="/courses"
+              className="bg-gray-600 text-white p-4 rounded-lg text-center hover:bg-gray-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdSettings />
               Paramètres
             </Link>
           </div>
@@ -181,7 +220,7 @@ const AdminDashboard = () => {
         {/* Utilisateurs récents */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-6">Utilisateurs récents</h2>
-          
+
           {users.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white">
@@ -213,9 +252,7 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-600">
-                Aucun utilisateur trouvé.
-              </p>
+              <p className="text-gray-600">Aucun utilisateur trouvé.</p>
             </div>
           )}
         </div>
@@ -223,7 +260,7 @@ const AdminDashboard = () => {
         {/* Cours récents */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-6">Cours récents</h2>
-          
+
           {courses.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white">
@@ -241,7 +278,9 @@ const AdminDashboard = () => {
                       <td className="py-3 px-4">
                         {course.title || course.titre || "Cours sans titre"}
                       </td>
-                      <td className="py-3 px-4">{course.level || "Intermédiaire"}</td>
+                      <td className="py-3 px-4">
+                        {course.level || "Intermédiaire"}
+                      </td>
                       <td className="py-3 px-4">{course.students || 0}</td>
                       <td className="py-3 px-4">
                         <Link
@@ -258,9 +297,7 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-600">
-                Aucun cours trouvé.
-              </p>
+              <p className="text-gray-600">Aucun cours trouvé.</p>
             </div>
           )}
         </div>

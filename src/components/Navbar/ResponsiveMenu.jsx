@@ -2,7 +2,13 @@ import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { NavbarMenu } from "../../mockData/data.js";
-import { MdLogout, MdPerson, MdBook, MdSettings } from "react-icons/md";
+import {
+  MdLogout,
+  MdPerson,
+  MdBook,
+  MdSettings,
+  MdMessage,
+} from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
 
 const ResponsiveMenu = ({ isOpen, user, userType, userInfo, handleLogout }) => {
@@ -83,6 +89,17 @@ const ResponsiveMenu = ({ isOpen, user, userType, userInfo, handleLogout }) => {
                     >
                       <MdBook />
                       Mes formations
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/messages"
+                      className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
+                    >
+                      <MdMessage />
+                      {userType === "formateur" || userType === "instructor"
+                        ? "Messages des étudiants"
+                        : "Contacter les formateurs"}
                     </Link>
                   </li>
                   <li>

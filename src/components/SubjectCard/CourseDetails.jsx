@@ -9,6 +9,9 @@ import {
   X,
   ChevronLeft,
   BarChart2,
+  MessageCircle,
+  MessageSquare,
+  UserCheck,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +27,10 @@ import CourseModules from "../CourseModules/CourseModules";
 import ModuleContent from "../CourseModules/ModuleContent";
 import CourseProgressBar from "../CourseProgress/CourseProgressBar";
 import ModuleProgressCard from "../CourseProgress/ModuleProgressCard";
+import CourseFeedback from "../Feedback/CourseFeedback";
+import ContactButtons from "../Contact/ContactButtons";
+import InstructorProfile from "../Instructor/InstructorProfile";
+import StudentContactForm from "../Contact/StudentContactForm";
 
 const CourseDetails = () => {
   const { id } = useParams();
@@ -1122,7 +1129,8 @@ const CourseDetails = () => {
                           </div>
                         ) : (
                           <CourseModules
-                            course={course}
+                            course={{ ...course, id }}
+                            isEnrolled={isEnrolled}
                             onModuleSelect={(module) => {
                               console.log("Module selected:", module);
                               if (isEnrolled) {
@@ -1374,6 +1382,39 @@ const CourseDetails = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Profil du formateur */}
+                  {(course?.formateur || course?.instructorId) && (
+                    <InstructorProfile
+                      instructorId={course?.formateur || course?.instructorId}
+                      courseId={id}
+                      courseName={course?.titre || course?.title || "Cours"}
+                    />
+                  )}
+
+                  {/* Feedback et avis */}
+                  <CourseFeedback
+                    courseId={id}
+                    courseName={course?.titre || course?.title || "Cours"}
+                  />
+
+                  {/* Formulaire de contact pour les étudiants */}
+                  {isEnrolled && (
+                    <StudentContactForm
+                      courseId={id}
+                      courseName={course?.titre || course?.title || "Cours"}
+                    />
+                  )}
+
+                  {/* Boutons de contact généraux */}
+                  <ContactButtons
+                    courseId={id}
+                    courseName={course?.titre || course?.title || "Cours"}
+                    instructorId={course?.formateur || course?.instructorId}
+                    instructorName={
+                      course?.formateurNom || course?.instructorName
+                    }
+                  />
 
                   {/* FAQ */}
                   {course.faq && course.faq.length > 0 && (
