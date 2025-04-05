@@ -8,6 +8,7 @@ import {
   Users,
   X,
   ChevronLeft,
+  BarChart2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -18,9 +19,11 @@ import {
 } from "../../utils/firebaseUtils";
 import { getAuth } from "firebase/auth";
 import { database } from "../../../firebaseConfig";
-import { ref, get, push, set } from "firebase/database";
+import { ref, get, set } from "firebase/database";
 import CourseModules from "../CourseModules/CourseModules";
 import ModuleContent from "../CourseModules/ModuleContent";
+import CourseProgressBar from "../CourseProgress/CourseProgressBar";
+import ModuleProgressCard from "../CourseProgress/ModuleProgressCard";
 
 const CourseDetails = () => {
   const { id } = useParams();
@@ -31,17 +34,17 @@ const CourseDetails = () => {
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
   const [enrollmentError, setEnrollmentError] = useState(null);
-  const [isFormateur, setIsFormateur] = useState(false);
-  const [refreshModules, setRefreshModules] = useState(false);
+  // Nous utilisons isEnrolled pour déterminer si l'utilisateur est inscrit au cours
   const [activeModule, setActiveModule] = useState(null);
   const [showModuleContent, setShowModuleContent] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
 
   // Firebase refs
   const auth = getAuth();
 
-  // Vérifier si l'utilisateur est un formateur
+  // Vérifier si l'utilisateur est un formateur et s'il est inscrit au cours
   useEffect(() => {
-    const checkUserRole = async () => {
+    const checkUserRoleAndEnrollment = async () => {
       try {
         const user = auth.currentUser;
         if (user) {
@@ -51,15 +54,187 @@ const CourseDetails = () => {
             `Elearning/Formateurs/${user.uid}`
           );
           const formateurSnapshot = await get(formateurRef);
-          setIsFormateur(formateurSnapshot.exists());
+          const isUserFormateur = formateurSnapshot.exists();
+
+          // Si l'utilisateur est un formateur, il a accès à tous les cours
+          if (isUserFormateur) {
+            setIsEnrolled(true);
+            return;
+          }
+
+          // Vérifier si l'utilisateur est inscrit au cours en utilisant le nouveau chemin
+          console.log(`Checking if user is enrolled in course ${id}`);
+
+          // Vérifier directement dans Elearning/Enrollments/{courseId}/{userId}
+          const enrollmentRef = ref(
+            database,
+            `Elearning/Enrollments/${id}/${user.uid}`
+          );
+          const enrollmentSnapshot = await get(enrollmentRef);
+
+          if (enrollmentSnapshot.exists()) {
+            console.log(
+              `User is enrolled in course ${id} (found in Elearning/Enrollments)`
+            );
+            setIsEnrolled(true);
+            return;
+          }
+
+          // Vérifier également dans Elearning/Enrollments/byUser/{userId}/{courseId}
+          const userEnrollmentRef = ref(
+            database,
+            `Elearning/Enrollments/byUser/${user.uid}/${id}`
+          );
+          const userEnrollmentSnapshot = await get(userEnrollmentRef);
+
+          if (userEnrollmentSnapshot.exists()) {
+            console.log(
+              `User is enrolled in course ${id} (found in Elearning/Enrollments/byUser)`
+            );
+            setIsEnrolled(true);
+            return;
+          }
+
+          // Vérifier dans la progression de l'utilisateur
+          const progressionRef = ref(
+            database,
+            `Elearning/Progression/${user.uid}/${id}`
+          );
+          const progressionSnapshot = await get(progressionRef);
+
+          if (progressionSnapshot.exists()) {
+            console.log(
+              `User has progression data for course ${id}, considered enrolled`
+            );
+            setIsEnrolled(true);
+            return;
+          }
+
+          // Vérifier dans les anciens chemins pour la compatibilité
+          let userEnrolled = false;
+          const legacyPaths = [
+            "enrollments",
+            "Inscriptions",
+            "Elearning/Inscriptions",
+            `Elearning/Cours/${id}/enrollments`,
+          ];
+
+          for (const path of legacyPaths) {
+            try {
+              console.log(`Checking legacy path ${path} for enrollment`);
+              const legacyRef = ref(database, path);
+              const legacySnapshot = await get(legacyRef);
+
+              if (legacySnapshot.exists()) {
+                const legacyData = legacySnapshot.val();
+
+                // Si c'est un chemin spécifique au cours
+                if (path.includes(`Cours/${id}/enrollments`)) {
+                  if (legacyData[user.uid]) {
+                    console.log(`User found in course-specific enrollments`);
+                    userEnrolled = true;
+
+                    // Migrer l'inscription vers le nouveau format
+                    try {
+                      await set(enrollmentRef, {
+                        userId: user.uid,
+                        courseId: id,
+                        enrolledAt: new Date().toISOString(),
+                        enrollmentId: Date.now().toString(),
+                      });
+
+                      await set(userEnrollmentRef, {
+                        courseId: id,
+                        enrolledAt: new Date().toISOString(),
+                      });
+
+                      console.log(`Migrated enrollment to new format`);
+                    } catch (migrationError) {
+                      console.error(
+                        `Error migrating enrollment:`,
+                        migrationError
+                      );
+                    }
+
+                    break;
+                  }
+                } else {
+                  // Pour les autres chemins
+                  const isEnrolled = Object.values(legacyData).some(
+                    (enrollment) => {
+                      const enrollmentUserId = enrollment.userId;
+                      const enrollmentCourseId =
+                        enrollment.courseId ||
+                        enrollment.course?.id ||
+                        enrollment.course;
+
+                      const match =
+                        enrollmentUserId === user.uid &&
+                        enrollmentCourseId === id;
+
+                      if (match) {
+                        console.log(
+                          `Found matching enrollment in ${path}:`,
+                          enrollment
+                        );
+                      }
+
+                      return match;
+                    }
+                  );
+
+                  if (isEnrolled) {
+                    console.log(
+                      `User is enrolled in course ${id} (found in ${path})`
+                    );
+                    userEnrolled = true;
+
+                    // Migrer l'inscription vers le nouveau format
+                    try {
+                      await set(enrollmentRef, {
+                        userId: user.uid,
+                        courseId: id,
+                        enrolledAt: new Date().toISOString(),
+                        enrollmentId: Date.now().toString(),
+                      });
+
+                      await set(userEnrollmentRef, {
+                        courseId: id,
+                        enrolledAt: new Date().toISOString(),
+                      });
+
+                      console.log(`Migrated enrollment to new format`);
+                    } catch (migrationError) {
+                      console.error(
+                        `Error migrating enrollment:`,
+                        migrationError
+                      );
+                    }
+
+                    break;
+                  }
+                }
+              }
+            } catch (error) {
+              console.error(`Error checking enrollments in ${path}:`, error);
+            }
+          }
+
+          // Mettre à jour l'état isEnrolled en fonction du résultat
+          setIsEnrolled(userEnrolled);
+          console.log(
+            `User is ${
+              userEnrolled ? "enrolled" : "not enrolled"
+            } in this course`
+          );
         }
       } catch (error) {
-        console.error("Error checking user role:", error);
+        console.error("Error checking user role and enrollment:", error);
       }
     };
 
-    checkUserRole();
-  }, [auth]);
+    checkUserRoleAndEnrollment();
+  }, [auth, id]);
 
   // Charger les détails du cours
   useEffect(() => {
@@ -330,7 +505,7 @@ const CourseDetails = () => {
     };
 
     loadCourse();
-  }, [id, refreshModules]);
+  }, [id]);
 
   const handleEnrollClick = async () => {
     const currentUser = auth.currentUser;
@@ -347,34 +522,158 @@ const CourseDetails = () => {
 
     // Vérifier si l'utilisateur est déjà inscrit au cours
     try {
-      // Vérifier dans plusieurs chemins possibles
-      const paths = ["enrollments", "Inscriptions", "Elearning/Inscriptions"];
+      console.log(
+        `Checking if user is already enrolled in course ${course.id}`
+      );
 
-      let userAlreadyEnrolled = false;
+      // Vérifier directement dans Elearning/Enrollments/{courseId}/{userId}
+      const enrollmentRef = ref(
+        database,
+        `Elearning/Enrollments/${course.id}/${currentUser.uid}`
+      );
+      const enrollmentSnapshot = await get(enrollmentRef);
 
-      for (const path of paths) {
-        const enrollmentsRef = ref(database, path);
-        const snapshot = await get(enrollmentsRef);
+      if (enrollmentSnapshot.exists()) {
+        console.log(
+          `User is already enrolled in course ${course.id} (found in Elearning/Enrollments)`
+        );
+        setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
+        setIsEnrolled(true);
+        return;
+      }
 
-        if (snapshot.exists()) {
-          const enrollments = snapshot.val();
-          const isEnrolled = Object.values(enrollments).some(
-            (enrollment) =>
-              enrollment.userId === currentUser.uid &&
-              enrollment.courseId === course.id
-          );
+      // Vérifier également dans Elearning/Enrollments/byUser/{userId}/{courseId}
+      const userEnrollmentRef = ref(
+        database,
+        `Elearning/Enrollments/byUser/${currentUser.uid}/${course.id}`
+      );
+      const userEnrollmentSnapshot = await get(userEnrollmentRef);
 
-          if (isEnrolled) {
-            userAlreadyEnrolled = true;
-            break;
+      if (userEnrollmentSnapshot.exists()) {
+        console.log(
+          `User is already enrolled in course ${course.id} (found in Elearning/Enrollments/byUser)`
+        );
+        setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
+        setIsEnrolled(true);
+        return;
+      }
+
+      // Vérifier dans la progression de l'utilisateur
+      const progressionRef = ref(
+        database,
+        `Elearning/Progression/${currentUser.uid}/${course.id}`
+      );
+      const progressionSnapshot = await get(progressionRef);
+
+      if (progressionSnapshot.exists()) {
+        console.log(
+          `User has progression data for course ${course.id}, already enrolled`
+        );
+        setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
+        setIsEnrolled(true);
+        return;
+      }
+
+      // Vérifier dans les anciens chemins pour la compatibilité
+      const legacyPaths = [
+        "enrollments",
+        "Inscriptions",
+        "Elearning/Inscriptions",
+        `Elearning/Cours/${course.id}/enrollments`,
+      ];
+
+      for (const path of legacyPaths) {
+        try {
+          console.log(`Checking legacy path ${path} for enrollment`);
+          const legacyRef = ref(database, path);
+          const legacySnapshot = await get(legacyRef);
+
+          if (legacySnapshot.exists()) {
+            const legacyData = legacySnapshot.val();
+
+            // Si c'est un chemin spécifique au cours
+            if (path.includes(`Cours/${course.id}/enrollments`)) {
+              if (legacyData[currentUser.uid]) {
+                console.log(`User found in course-specific enrollments`);
+
+                // Migrer l'inscription vers le nouveau format
+                try {
+                  await set(enrollmentRef, {
+                    userId: currentUser.uid,
+                    courseId: course.id,
+                    enrolledAt: new Date().toISOString(),
+                    enrollmentId: Date.now().toString(),
+                  });
+
+                  await set(userEnrollmentRef, {
+                    courseId: course.id,
+                    enrolledAt: new Date().toISOString(),
+                  });
+
+                  console.log(`Migrated enrollment to new format`);
+                } catch (migrationError) {
+                  console.error(`Error migrating enrollment:`, migrationError);
+                }
+
+                setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
+                setIsEnrolled(true);
+                return;
+              }
+            } else {
+              // Pour les autres chemins
+              const isEnrolled = Object.values(legacyData).some(
+                (enrollment) => {
+                  const enrollmentUserId = enrollment.userId;
+                  const enrollmentCourseId =
+                    enrollment.courseId ||
+                    enrollment.course?.id ||
+                    enrollment.course;
+
+                  return (
+                    enrollmentUserId === currentUser.uid &&
+                    enrollmentCourseId === course.id
+                  );
+                }
+              );
+
+              if (isEnrolled) {
+                console.log(
+                  `User is already enrolled in course ${course.id} (found in ${path})`
+                );
+
+                // Migrer l'inscription vers le nouveau format
+                try {
+                  await set(enrollmentRef, {
+                    userId: currentUser.uid,
+                    courseId: course.id,
+                    enrolledAt: new Date().toISOString(),
+                    enrollmentId: Date.now().toString(),
+                  });
+
+                  await set(userEnrollmentRef, {
+                    courseId: course.id,
+                    enrolledAt: new Date().toISOString(),
+                  });
+
+                  console.log(`Migrated enrollment to new format`);
+                } catch (migrationError) {
+                  console.error(`Error migrating enrollment:`, migrationError);
+                }
+
+                setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
+                setIsEnrolled(true);
+                return;
+              }
+            }
           }
+        } catch (pathError) {
+          console.error(`Error checking enrollment in ${path}:`, pathError);
         }
       }
 
-      if (userAlreadyEnrolled) {
-        setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
-        return;
-      }
+      console.log(
+        `User is not enrolled in course ${course.id}, proceeding with enrollment`
+      );
     } catch (error) {
       console.error("Error checking enrollment status:", error);
     }
@@ -403,41 +702,54 @@ const CourseDetails = () => {
       // Vérifier que toutes les propriétés sont définies
       console.log("Enrollment data:", enrollmentData);
 
-      // Enregistrer l'inscription dans Firebase - essayer plusieurs chemins
+      // Enregistrer l'inscription uniquement dans Elearning/Enrollments
+      let enrollmentSuccess = false;
+
       try {
-        // 1. Essayer d'abord dans /enrollments (chemin standard)
-        const enrollmentsRef = ref(database, "enrollments");
-        const newEnrollmentRef = push(enrollmentsRef);
-        await set(newEnrollmentRef, enrollmentData);
-        console.log("Enrollment saved to /enrollments");
-      } catch (error) {
-        console.error(
-          "Error saving to /enrollments, trying alternative path:",
-          error
+        // 1. Enregistrer l'inscription dans Elearning/Enrollments/{courseId}/{userId}
+        // Cette structure permet de facilement vérifier si un utilisateur est inscrit à un cours spécifique
+        console.log(
+          `Saving enrollment to Elearning/Enrollments/${course.id}/${currentUser.uid}`
+        );
+        const enrollmentRef = ref(
+          database,
+          `Elearning/Enrollments/${course.id}/${currentUser.uid}`
+        );
+        await set(enrollmentRef, {
+          ...enrollmentData,
+          enrollmentId: Date.now().toString(), // Ajouter un ID unique pour l'inscription
+        });
+        console.log(
+          `✅ Successfully saved enrollment to Elearning/Enrollments/${course.id}/${currentUser.uid}`
         );
 
-        // 2. Essayer dans /Inscriptions (chemin alternatif)
+        // 2. Ajouter également une référence dans Elearning/Enrollments/byUser/{userId}/{courseId}
+        // Cette structure permet de facilement récupérer tous les cours auxquels un utilisateur est inscrit
+        console.log(
+          `Saving enrollment reference to Elearning/Enrollments/byUser/${currentUser.uid}/${course.id}`
+        );
+        const userEnrollmentRef = ref(
+          database,
+          `Elearning/Enrollments/byUser/${currentUser.uid}/${course.id}`
+        );
+        await set(userEnrollmentRef, {
+          courseId: course.id,
+          enrolledAt: new Date().toISOString(),
+        });
+        console.log(
+          `✅ Successfully saved enrollment reference to Elearning/Enrollments/byUser/${currentUser.uid}/${course.id}`
+        );
+
+        enrollmentSuccess = true;
+      } catch (error) {
+        console.error(`❌ Error saving enrollment:`, error);
+        setEnrollmentError(`Erreur lors de l'inscription: ${error.message}`);
+      }
+
+      // Si l'inscription a réussi, initialiser la progression de l'étudiant pour ce cours
+      if (enrollmentSuccess) {
         try {
-          const inscriptionsRef = ref(database, "Inscriptions");
-          const newInscriptionRef = push(inscriptionsRef);
-          await set(newInscriptionRef, enrollmentData);
-          console.log("Enrollment saved to /Inscriptions");
-        } catch (inscriptionError) {
-          console.error(
-            "Error saving to /Inscriptions, trying last resort path:",
-            inscriptionError
-          );
-
-          // 3. Dernier recours: Elearning/Inscriptions
-          const elearningInscriptionsRef = ref(
-            database,
-            "Elearning/Inscriptions"
-          );
-          const newElearningInscriptionRef = push(elearningInscriptionsRef);
-          await set(newElearningInscriptionRef, enrollmentData);
-          console.log("Enrollment saved to Elearning/Inscriptions");
-
-          // 4. Initialiser la progression de l'étudiant pour ce cours
+          console.log(`Initializing progression for course ${course.id}`);
           const progressionRef = ref(
             database,
             `Elearning/Progression/${currentUser.uid}/${course.id}`
@@ -450,18 +762,49 @@ const CourseDetails = () => {
             completed: false,
             lastUpdated: new Date().toISOString(),
           });
-          console.log("Progression initialized for the course");
+          console.log("✅ Progression initialized for the course");
+        } catch (error) {
+          console.error("❌ Error initializing progression:", error);
+          // Une erreur ici n'est pas critique, l'inscription a déjà réussi
         }
+
+        // Ajouter une référence dans le cours pour faciliter la gestion côté formateur
+        try {
+          console.log(`Adding enrollment reference to course ${course.id}`);
+          const courseEnrollmentRef = ref(
+            database,
+            `Elearning/Cours/${course.id}/enrollments/${currentUser.uid}`
+          );
+          await set(courseEnrollmentRef, {
+            userId: currentUser.uid,
+            enrolledAt: new Date().toISOString(),
+          });
+          console.log("✅ Enrollment reference added to course");
+        } catch (error) {
+          console.error(
+            "❌ Error adding enrollment reference to course:",
+            error
+          );
+          // Une erreur ici n'est pas critique, l'inscription a déjà réussi
+        }
+      } else {
+        // L'inscription a échoué
+        console.error("Failed to save enrollment");
+        setEnrollmentError(
+          "Une erreur s'est produite lors de l'inscription. Veuillez réessayer."
+        );
+        setEnrollmentLoading(false);
+        return;
       }
+
+      // Mettre à jour l'état isEnrolled immédiatement
+      setIsEnrolled(true);
 
       // Show success message
       setEnrollmentSuccess(true);
 
-      // Close popup after 3 seconds on success
-      setTimeout(() => {
-        setShowEnrollPopup(false);
-        setEnrollmentSuccess(false);
-      }, 3000);
+      // Ne pas fermer automatiquement le popup, laisser l'utilisateur cliquer sur le bouton
+      // pour qu'il puisse voir le message de succès et comprendre qu'il est maintenant inscrit
     } catch (error) {
       console.error("Error creating enrollment:", error);
     } finally {
@@ -470,23 +813,37 @@ const CourseDetails = () => {
   };
 
   const EnrollmentPopup = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold">Confirm Enrollment</h3>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-2xl font-bold text-secondary">
+            {enrollmentSuccess
+              ? "Inscription réussie !"
+              : "Confirmer l'inscription"}
+          </h3>
           <button
             onClick={() => setShowEnrollPopup(false)}
-            className="p-1 rounded-full hover:bg-gray-100"
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {enrollmentSuccess ? (
-          <div className="text-center py-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-center py-6"
+          >
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <svg
-                className="w-8 h-8 text-green-500"
+                className="w-10 h-10 text-green-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -499,41 +856,111 @@ const CourseDetails = () => {
                 ></path>
               </svg>
             </div>
-            <h4 className="text-lg font-medium mb-2">Enrollment Successful!</h4>
-            <p className="text-gray-600">
-              You have been enrolled in {course.title}
+            <h4 className="text-xl font-semibold mb-3 text-gray-800">
+              Félicitations !
+            </h4>
+            <p className="text-gray-600 mb-6">
+              Vous êtes maintenant inscrit au cours{" "}
+              <span className="font-medium text-secondary">{course.title}</span>
             </p>
-          </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Vous pouvez maintenant accéder à tous les modules et ressources du
+              cours.
+            </p>
+            <button
+              onClick={() => {
+                setShowEnrollPopup(false);
+                setIsEnrolled(true);
+
+                // Mettre à jour l'interface sans recharger la page complète
+                // Cela permet de conserver l'état isEnrolled
+                if (course.modules && course.modules.length > 0) {
+                  // Naviguer vers le premier module
+                  setActiveModule(course.modules[0]);
+                  setShowModuleContent(true);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300"
+            >
+              Commencer à apprendre
+            </button>
+          </motion.div>
         ) : (
           <>
             <div className="mb-6">
-              <p className="text-gray-600 mb-4">You are about to enroll in:</p>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium">{course?.title}</h4>
-                <p className="text-gray-600 text-sm">
-                  {course?.instructor?.name}
-                </p>
+              <p className="text-gray-600 mb-4">
+                Vous êtes sur le point de vous inscrire au cours :
+              </p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
+                    <img
+                      src={
+                        course?.image ||
+                        "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80"
+                      }
+                      alt={course?.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src =
+                          "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80";
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-lg">{course?.title}</h4>
+                    <p className="text-gray-600 text-sm">
+                      {course?.instructor?.name || "Formateur"}
+                    </p>
+                  </div>
+                </div>
               </div>
+            </div>
+
+            {enrollmentError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md border border-red-100">
+                {enrollmentError}
+              </div>
+            )}
+
+            <div className="text-sm text-gray-500 mb-6">
+              <p className="mb-2">
+                En vous inscrivant à ce cours, vous aurez accès à :
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Tous les modules et ressources du cours</li>
+                <li>Les évaluations et quiz</li>
+                <li>Un suivi de votre progression</li>
+                <li>Un certificat après complétion</li>
+              </ul>
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowEnrollPopup(false)}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200"
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleConfirmEnrollment}
-                className="flex-1 py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-2 px-4 bg-secondary text-white rounded-lg hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center gap-2"
                 disabled={enrollmentLoading}
               >
-                {enrollmentLoading ? "Processing..." : "Confirm Enrollment"}
+                {enrollmentLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Traitement...</span>
+                  </>
+                ) : (
+                  "Confirmer l'inscription"
+                )}
               </button>
             </div>
           </>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 
@@ -643,6 +1070,7 @@ const CourseDetails = () => {
                       </div>
                       <ModuleContent
                         module={activeModule}
+                        isEnrolled={isEnrolled}
                         onComplete={() => {
                           // Mettre à jour le statut du module
                           console.log(
@@ -661,17 +1089,96 @@ const CourseDetails = () => {
                     </div>
                   )}
 
+                  {/* Course Progress (when enrolled and no module is selected) */}
+                  {!showModuleContent && isEnrolled && (
+                    <div className="mb-8">
+                      <CourseProgressBar courseId={id} />
+                    </div>
+                  )}
+
                   {/* Course Modules and Evaluations (when no module is selected) */}
                   {!showModuleContent &&
                     (course.modules && course.modules.length > 0 ? (
-                      <CourseModules
-                        course={course}
-                        onModuleSelect={(module) => {
-                          console.log("Module selected:", module);
-                          setActiveModule(module);
-                          setShowModuleContent(true);
-                        }}
-                      />
+                      <div>
+                        {isEnrolled ? (
+                          <div className="mb-6">
+                            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                              <BarChart2 size={20} />
+                              Progression des modules
+                            </h2>
+                            <div className="space-y-4">
+                              {Object.entries(course.modules).map(
+                                ([moduleId, moduleData], index) => (
+                                  <ModuleProgressCard
+                                    key={moduleId}
+                                    moduleId={moduleId}
+                                    courseId={id}
+                                    moduleData={moduleData}
+                                    index={index}
+                                  />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <CourseModules
+                            course={course}
+                            onModuleSelect={(module) => {
+                              console.log("Module selected:", module);
+                              if (isEnrolled) {
+                                setActiveModule(module);
+                                setShowModuleContent(true);
+                              } else {
+                                // Afficher un message d'inscription si l'utilisateur n'est pas inscrit
+                                alert(
+                                  "Vous devez être inscrit à ce cours pour accéder au contenu des modules."
+                                );
+                                setShowEnrollPopup(true);
+                              }
+                            }}
+                          />
+                        )}
+
+                        {!isEnrolled && (
+                          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mt-4 mb-8">
+                            <p className="text-gray-700 mb-2 flex items-center">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5 text-yellow-500 mr-2"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              Vous pouvez voir les modules, mais vous devez être
+                              inscrit pour accéder aux ressources et aux
+                              évaluations.
+                            </p>
+                            <button
+                              onClick={() => setShowEnrollPopup(true)}
+                              className="bg-secondary text-white px-4 py-2 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300 mt-2 flex items-center gap-2"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              S&apos;inscrire maintenant
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
                         <h2 className="text-xl font-semibold mb-4">
@@ -898,17 +1405,74 @@ const CourseDetails = () => {
                       <h3 className="text-3xl font-bold mb-4">
                         ${(course.price || 49.99).toFixed(2)}
                       </h3>
-                      <button
-                        className="w-full primary-btn mb-4"
-                        onClick={handleEnrollClick}
-                      >
-                        Enroll Now
-                      </button>
-                      {enrollmentError && (
-                        <div
-                          className="error-message"
-                          style={{ color: "red", margin: "10px 0" }}
+
+                      {isEnrolled ? (
+                        <div className="mb-4">
+                          <div className="bg-green-100 text-green-800 p-3 rounded-lg flex items-center gap-2 mb-3">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span>Vous êtes inscrit à ce cours</span>
+                          </div>
+                          <button
+                            className="w-full bg-secondary text-white py-3 px-4 rounded-lg font-medium hover:bg-secondary/90 transition-colors duration-300 flex items-center justify-center gap-2"
+                            onClick={() => {
+                              // Naviguer vers le premier module du cours
+                              if (course.modules && course.modules.length > 0) {
+                                setActiveModule(course.modules[0]);
+                                setShowModuleContent(true);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Continuer à apprendre
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="w-full bg-secondary text-white py-3 px-4 rounded-lg font-medium hover:bg-secondary/90 transition-colors duration-300 flex items-center justify-center gap-2 mb-4"
+                          onClick={handleEnrollClick}
                         >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path
+                              fillRule="evenodd"
+                              d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          S&apos;inscrire maintenant
+                        </button>
+                      )}
+
+                      {enrollmentError && (
+                        <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 text-sm">
                           {enrollmentError}
                         </div>
                       )}

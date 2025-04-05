@@ -92,9 +92,24 @@ const MyCourses = () => {
                 const coursesData = await Promise.all(coursePromises);
                 console.log("Courses data:", coursesData);
 
-                // Filtrer les cours null ou undefined
+                // Filtrer les cours null ou undefined et éliminer les doublons
                 const validCoursesData = coursesData.filter((course) => course);
-                setCourses(validCoursesData);
+
+                // Éliminer les doublons en utilisant l'ID du cours comme clé unique
+                const uniqueCoursesMap = new Map();
+                validCoursesData.forEach((course) => {
+                  if (course && course.id && !uniqueCoursesMap.has(course.id)) {
+                    uniqueCoursesMap.set(course.id, course);
+                  }
+                });
+
+                // Convertir la Map en tableau
+                const uniqueCoursesData = Array.from(uniqueCoursesMap.values());
+                console.log(
+                  `Found ${validCoursesData.length} courses, ${uniqueCoursesData.length} unique courses after filtering`
+                );
+
+                setCourses(uniqueCoursesData);
               } catch (coursesError) {
                 console.error("Error processing courses:", coursesError);
                 setCourses([]);

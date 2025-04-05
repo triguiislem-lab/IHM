@@ -433,54 +433,110 @@ export const fetchEnrollmentsByUser = async (userId) => {
 	try {
 		console.log(`Fetching enrollments for user ${userId}`);
 
-		// Essayer d'abord dans le chemin /enrollments
-		const enrollmentsRef = ref(database, 'enrollments');
+		// Utiliser uniquement le chemin Elearning/Enrollments/byUser/{userId}
+		const enrollmentsRef = ref(database, `Elearning/Enrollments/byUser/${userId}`);
 		const snapshot = await get(enrollmentsRef);
-		let userEnrollments = [];
+		let enrollments = [];
 
 		if (snapshot.exists()) {
-			const enrollments = snapshot.val();
-			console.log(`Found enrollments at /enrollments:`, Object.keys(enrollments));
+			const enrollmentsData = snapshot.val();
+			console.log(`Found enrollments for user ${userId}:`, Object.keys(enrollmentsData));
 
-			userEnrollments = Object.values(enrollments).filter(
-				(enrollment) => enrollment.userId === userId
-			);
-			console.log(`Found ${userEnrollments.length} enrollments in /enrollments for user ${userId}:`, userEnrollments);
+			// Convertir les données en tableau d'inscriptions
+			enrollments = Object.entries(enrollmentsData).map(([courseId, data]) => ({
+				courseId,
+				userId,
+				enrolledAt: data.enrolledAt || new Date().toISOString(),
+				...data
+			}));
+
+			console.log(`Found ${enrollments.length} enrollments for user ${userId}`);
 		} else {
-			console.log(`No enrollments found at /enrollments`);
+			console.log(`No enrollments found for user ${userId} in Elearning/Enrollments/byUser`);
+
+			// Vérifier dans l'ancien chemin pour la compatibilité avec les données existantes
+			// Cette partie peut être supprimée une fois que toutes les données sont migrées
+			const legacyPaths = [
+				'enrollments',
+				'Inscriptions',
+				'Elearning/Inscriptions'
+			];
+
+			let legacyEnrollments = [];
+
+			for (const path of legacyPaths) {
+				try {
+					const legacyRef = ref(database, path);
+					const legacySnapshot = await get(legacyRef);
+
+					if (legacySnapshot.exists()) {
+						const legacyData = legacySnapshot.val();
+						const userEnrollments = Object.values(legacyData).filter(
+							(enrollment) => enrollment.userId === userId
+						);
+
+						if (userEnrollments.length > 0) {
+							console.log(`Found ${userEnrollments.length} legacy enrollments in ${path}`);
+							legacyEnrollments = [...legacyEnrollments, ...userEnrollments];
+
+							// Migrer les données vers le nouveau format
+							userEnrollments.forEach(async (enrollment) => {
+								const courseId = enrollment.courseId || enrollment.course?.id || enrollment.course;
+								if (courseId) {
+									try {
+										// Enregistrer dans le nouveau format
+										const newEnrollmentRef = ref(database, `Elearning/Enrollments/${courseId}/${userId}`);
+										await set(newEnrollmentRef, {
+											userId,
+											courseId,
+											enrolledAt: enrollment.enrolledAt || enrollment.date || new Date().toISOString(),
+											enrollmentId: Date.now().toString()
+										});
+
+										// Ajouter également une référence dans byUser
+										const userEnrollmentRef = ref(database, `Elearning/Enrollments/byUser/${userId}/${courseId}`);
+										await set(userEnrollmentRef, {
+											courseId,
+											enrolledAt: enrollment.enrolledAt || enrollment.date || new Date().toISOString()
+										});
+										console.log(`Migrated enrollment for course ${courseId} to new format`);
+									} catch (migrationError) {
+										console.error(`Error migrating enrollment for course ${courseId}:`, migrationError);
+									}
+								}
+							});
+						}
+					}
+				} catch (error) {
+					console.error(`Error checking legacy enrollments in ${path}:`, error);
+				}
+			}
+
+			// Éliminer les doublons des inscriptions héritées
+			if (legacyEnrollments.length > 0) {
+				const uniqueEnrollments = [];
+				const courseIds = new Set();
+
+				legacyEnrollments.forEach(enrollment => {
+					const courseId = enrollment.courseId || enrollment.course?.id || enrollment.course;
+					if (courseId && !courseIds.has(courseId)) {
+						courseIds.add(courseId);
+						// Normaliser l'objet d'inscription
+						uniqueEnrollments.push({
+							...enrollment,
+							courseId,
+							userId,
+							enrolledAt: enrollment.enrolledAt || enrollment.date || new Date().toISOString()
+						});
+					}
+				});
+
+				console.log(`Found ${uniqueEnrollments.length} unique legacy enrollments after deduplication`);
+				enrollments = uniqueEnrollments;
+			}
 		}
 
-		// Essayer aussi dans le chemin Elearning/Enrollments
-		const elearningEnrollmentsRef = ref(database, 'Elearning/Enrollments');
-		const elearningSnapshot = await get(elearningEnrollmentsRef);
-
-		if (elearningSnapshot.exists()) {
-			const elearningEnrollments = elearningSnapshot.val();
-			const elearningUserEnrollments = Object.values(elearningEnrollments).filter(
-				(enrollment) => enrollment.userId === userId
-			);
-			console.log(`Found ${elearningUserEnrollments.length} enrollments in Elearning/Enrollments for user ${userId}`);
-
-			// Combiner les résultats
-			userEnrollments = [...userEnrollments, ...elearningUserEnrollments];
-		}
-
-		// Essayer aussi dans le chemin Inscriptions
-		const inscriptionsRef = ref(database, 'Inscriptions');
-		const inscriptionsSnapshot = await get(inscriptionsRef);
-
-		if (inscriptionsSnapshot.exists()) {
-			const inscriptions = inscriptionsSnapshot.val();
-			const inscriptionsUserEnrollments = Object.values(inscriptions).filter(
-				(inscription) => inscription.userId === userId
-			);
-			console.log(`Found ${inscriptionsUserEnrollments.length} enrollments in Inscriptions for user ${userId}`);
-
-			// Combiner les résultats
-			userEnrollments = [...userEnrollments, ...inscriptionsUserEnrollments];
-		}
-
-		return userEnrollments;
+		return enrollments;
 	} catch (error) {
 		console.error(`Error fetching enrollments for user ${userId}:`, error);
 		// En cas d'erreur, retourner des données de test
