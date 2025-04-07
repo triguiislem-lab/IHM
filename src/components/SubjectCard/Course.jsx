@@ -24,9 +24,17 @@ const Course = ({ course, index }) => {
     >
       <div className="relative">
         <img
-          src={course.image}
+          src={
+            course.image ||
+            "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80"
+          }
           alt={course.titre || course.title}
           className="w-full h-56 object-cover"
+          onError={(e) => {
+            console.log("Course image failed to load:", e.target.src);
+            e.target.src =
+              "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
+          }}
         />
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 shadow-md">
           <Clock className="w-4 h-4 text-secondary" />

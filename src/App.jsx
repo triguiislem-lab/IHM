@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, get } from "firebase/database";
+import { getDatabase, ref, get, set } from "firebase/database";
 import Navbar from "./components/Navbar/Navbar";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -17,6 +17,10 @@ import StudentDashboard from "./pages/Dashboard/StudentDashboard";
 import InstructorDashboard from "./pages/Dashboard/InstructorDashboard";
 import AdminDashboard from "./pages/Dashboard/AdminDashboard";
 import DatabaseCleanup from "./pages/Admin/DatabaseCleanup";
+import DatabaseMigration from "./pages/Admin/DatabaseMigration";
+import SpecialitesManager from "./pages/Admin/SpecialitesManager";
+import CourseForm from "./pages/Admin/CourseForm";
+import InstructorCourses from "./pages/Instructor/MyCourses";
 import MessagesPage from "./pages/Messages/MessagesPage";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -33,22 +37,46 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         // Récupérer le rôle de l'utilisateur depuis la base de données
         try {
           const database = getDatabase();
-          const userRef = ref(database, `Elearning/Utilisateurs/${user.uid}`);
+          // Utiliser le nouveau chemin standardisé
+          const userRef = ref(database, `elearning/users/${user.uid}`);
           const snapshot = await get(userRef);
 
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            setUserRole(userData.userType || "student");
+            // Vérifier à la fois role et userType pour la compatibilité
+            setUserRole(userData.role || userData.userType || "student");
           } else {
-            // Vérifier dans d'autres chemins
-            const altUserRef = ref(database, `users/${user.uid}`);
-            const altSnapshot = await get(altUserRef);
+            // Si l'utilisateur n'est pas trouvé dans elearning/users, créer un profil par défaut
+            console.log(
+              `User ${user.uid} not found in elearning/users, creating default profile`
+            );
 
-            if (altSnapshot.exists()) {
-              const altUserData = altSnapshot.val();
-              setUserRole(altUserData.userType || "student");
-            } else {
-              setUserRole("student"); // Rôle par défaut
+            // Créer un profil utilisateur par défaut dans elearning/users
+            const defaultUserData = {
+              id: user.uid,
+              firstName: user.displayName ? user.displayName.split(" ")[0] : "",
+              lastName: user.displayName
+                ? user.displayName.split(" ").slice(1).join(" ")
+                : "",
+              email: user.email,
+              role: "student", // Rôle par défaut
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+
+            try {
+              // Enregistrer le profil par défaut
+              await set(userRef, defaultUserData);
+              console.log(
+                `Created default profile for user ${user.uid} in elearning/users`
+              );
+              setUserRole("student");
+            } catch (error) {
+              console.error(
+                `Error creating default profile for user ${user.uid}:`,
+                error
+              );
+              setUserRole("student"); // Rôle par défaut en cas d'erreur
             }
           }
         } catch (error) {
@@ -133,6 +161,67 @@ const App = () => {
             element={
               <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
                 <DatabaseCleanup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/database-migration"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
+                <DatabaseMigration />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/specialites"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
+                <SpecialitesManager />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/course/new"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "administrateur",
+                  "instructor",
+                  "formateur",
+                ]}
+              >
+                <CourseForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/course/edit/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "administrateur",
+                  "instructor",
+                  "formateur",
+                ]}
+              >
+                <CourseForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/courses"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "administrateur",
+                  "instructor",
+                  "formateur",
+                ]}
+              >
+                <InstructorCourses />
               </ProtectedRoute>
             }
           />

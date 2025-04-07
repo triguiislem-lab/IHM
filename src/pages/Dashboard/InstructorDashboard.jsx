@@ -127,7 +127,7 @@ const InstructorDashboard = () => {
               className="bg-secondary text-white p-4 rounded-lg text-center hover:bg-secondary/90 transition-colors duration-300 flex items-center justify-center gap-2"
             >
               <MdSchool />
-              Voir tous les cours
+              Explorer les cours
             </Link>
             <Link
               to="/profile"
@@ -146,22 +146,49 @@ const InstructorDashboard = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
             <Link
-              to="/courses"
+              to="/admin/course/new"
               className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
             >
               <MdAdd />
-              Créer un cours
+              Créer un nouveau cours
+            </Link>
+            <Link
+              to="/instructor/courses"
+              className="bg-purple-600 text-white p-4 rounded-lg text-center hover:bg-purple-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdSchool />
+              Gérer mes cours
             </Link>
           </div>
         </div>
 
         {/* Liste des cours */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-6">Mes cours</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Mes cours</h2>
+            <Link
+              to="/instructor/courses"
+              className="text-secondary hover:underline flex items-center gap-1"
+            >
+              Voir tous mes cours
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </Link>
+          </div>
 
           {courses.length > 0 ? (
             <div className="space-y-4">
-              {courses.map((course) => (
+              {courses.slice(0, 3).map((course) => (
                 <div
                   key={course.id}
                   className="border rounded-lg p-4 hover:bg-gray-50 transition-colors duration-300"
@@ -175,27 +202,66 @@ const InstructorDashboard = () => {
                         {course.students || 0} étudiants inscrits
                       </p>
                     </div>
-                    <Link
-                      to={`/course/${course.id}`}
-                      className="bg-secondary text-white px-3 py-1 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300"
-                    >
-                      Gérer
-                    </Link>
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/course/${course.id}`}
+                        className="bg-secondary text-white px-3 py-1 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300"
+                      >
+                        Voir
+                      </Link>
+                      <Link
+                        to={`/admin/course/edit/${course.id}`}
+                        className="bg-orange-600 text-white px-3 py-1 rounded-md text-sm hover:bg-orange-700 transition-colors duration-300"
+                      >
+                        Éditer
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ))}
+              {courses.length > 3 && (
+                <div className="text-center mt-4">
+                  <Link
+                    to="/instructor/courses"
+                    className="text-secondary hover:underline inline-flex items-center"
+                  >
+                    Voir tous mes cours ({courses.length})
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 ml-1"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </Link>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <p className="text-gray-600 mb-4">
                 Vous n'avez pas encore créé de cours.
               </p>
-              <Link
-                to="/courses"
-                className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300"
-              >
-                Créer un cours
-              </Link>
+              <div className="mt-4 flex justify-center space-x-4">
+                <Link
+                  to="/admin/course/new"
+                  className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center gap-2"
+                >
+                  <MdAdd />
+                  Créer un cours
+                </Link>
+                <Link
+                  to="/courses"
+                  className="text-secondary border border-secondary px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors duration-300"
+                >
+                  Explorer les cours
+                </Link>
+              </div>
             </div>
           )}
         </div>

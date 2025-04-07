@@ -1,6 +1,44 @@
 import { database } from '../../firebaseConfig';
 import { ref, get, set, update } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
+import { fetchCompleteUserInfo } from './fetchCompleteUserInfo';
+
+// Récupérer un formateur par ID
+export const fetchInstructorById = async (instructorId) => {
+	try {
+		console.log(`Fetching instructor with ID: ${instructorId}`);
+
+		// Vérifier si l'ID est valide
+		if (!instructorId) {
+			console.log('No instructor ID provided');
+			return null;
+		}
+
+		// Utiliser le nouveau chemin standardisé
+		const instructorRef = ref(database, `elearning/users/${instructorId}`);
+		const snapshot = await get(instructorRef);
+
+		if (snapshot.exists()) {
+			const instructorData = snapshot.val();
+			console.log(`Instructor found:`, instructorData);
+
+			// Créer un objet formateur avec les informations nécessaires
+			return {
+				id: instructorId,
+				name: `${instructorData.firstName || ''} ${instructorData.lastName || ''}`.trim() || 'Formateur',
+				bio: instructorData.bio || instructorData.description || 'Informations du formateur non disponibles',
+				expertise: instructorData.expertise || '',
+				avatar: instructorData.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+			};
+		}
+
+		console.log(`No instructor found with ID ${instructorId}`);
+		return null;
+	} catch (error) {
+		console.error(`Error fetching instructor with ID ${instructorId}:`, error);
+		return null;
+	}
+};
 
 // Fonction générique pour récupérer des données de Firebase
 const fetchDataFromPath = async (path) => {
@@ -12,9 +50,65 @@ const fetchDataFromPath = async (path) => {
 		if (snapshot.exists()) {
 			const data = snapshot.val();
 			console.log(`Data found at ${path}:`, data);
-			// Convert object to array if necessary
-			const result = Array.isArray(data) ? data : Object.values(data);
-			console.log(`Converted to array:`, result);
+			// Convert object to array if necessary, preserving IDs
+			let result;
+			if (Array.isArray(data)) {
+				result = data;
+			} else {
+				// Convert object to array with IDs
+				result = Object.entries(data).map(([id, value]) => ({
+					id,
+					...value
+				}));
+			}
+			console.log(`Converted to array with IDs:`, result);
+
+			// Ensure all items have required properties (image and instructor for courses)
+			result = await Promise.all(result.map(async (item) => {
+				let updatedItem = { ...item };
+
+				// Add default image if missing
+				if (!updatedItem.image) {
+					console.log(`Adding default image to item ${updatedItem.id}`);
+					updatedItem.image = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
+				}
+
+				// If this is a course, ensure it has instructor information
+				if (path.includes('courses') && (!updatedItem.instructor || Object.keys(updatedItem.instructor || {}).length === 0)) {
+					console.log(`Adding instructor information to course ${updatedItem.id}`);
+
+					// Check if there's an instructorId but no instructor object
+					if (updatedItem.instructorId) {
+						// Try to fetch instructor data
+						console.log(`Course has instructorId ${updatedItem.instructorId}, fetching instructor data`);
+						const instructorData = await fetchInstructorById(updatedItem.instructorId);
+
+						if (instructorData) {
+							console.log(`Found instructor data for ${updatedItem.instructorId}:`, instructorData);
+							updatedItem.instructor = instructorData;
+						} else {
+							console.log(`No instructor data found for ${updatedItem.instructorId}, using default`);
+							updatedItem.instructor = {
+								id: updatedItem.instructorId,
+								name: "Formateur",
+								bio: "Informations du formateur non disponibles",
+								avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+							};
+						}
+					} else {
+						// No instructorId, add default instructor
+						console.log(`No instructorId for course ${updatedItem.id}, using default`);
+						updatedItem.instructor = {
+							name: "Formateur",
+							bio: "Informations du formateur non disponibles",
+							avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+						};
+					}
+				}
+
+				return updatedItem;
+			}));
+
 			return result;
 		}
 		console.log(`No data found at ${path}`);
@@ -27,22 +121,28 @@ const fetchDataFromPath = async (path) => {
 
 // Récupérer les utilisateurs
 export const fetchUsersFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Utilisateurs');
+	return fetchDataFromPath('elearning/users');
 };
 
 // Récupérer les administrateurs
 export const fetchAdminsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Administrateurs');
+	// Note: Dans la nouvelle structure, les administrateurs sont dans users avec role=admin
+	const users = await fetchDataFromPath('elearning/users');
+	return users.filter(user => user.role === 'admin');
 };
 
 // Récupérer les apprenants
 export const fetchApprenantsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Apprenants');
+	// Note: Dans la nouvelle structure, les apprenants sont dans users avec role=student
+	const users = await fetchDataFromPath('elearning/users');
+	return users.filter(user => user.role === 'student');
 };
 
 // Récupérer les formateurs
 export const fetchFormateursFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Formateurs');
+	// Note: Dans la nouvelle structure, les formateurs sont dans users avec role=instructor
+	const users = await fetchDataFromPath('elearning/users');
+	return users.filter(user => user.role === 'instructor');
 };
 
 // Fonction pour tester les chemins disponibles dans Firebase
@@ -58,18 +158,18 @@ export const testFirebasePaths = async () => {
 			console.log("Root data keys:", Object.keys(rootData));
 		}
 
-		// Tester le chemin Elearning
-		const elearningRef = ref(database, '/Elearning');
+		// Tester le chemin elearning
+		const elearningRef = ref(database, '/elearning');
 		const elearningSnapshot = await get(elearningRef);
 		if (elearningSnapshot.exists()) {
 			const elearningData = elearningSnapshot.val();
-			console.log("Elearning data keys:", Object.keys(elearningData));
+			console.log("elearning data keys:", Object.keys(elearningData));
 		} else {
-			console.log("Elearning path does not exist");
+			console.log("elearning path does not exist");
 		}
 
 		// Examiner en détail la structure des cours
-		const coursRef = ref(database, '/Elearning/Cours');
+		const coursRef = ref(database, '/elearning/courses');
 		const coursSnapshot = await get(coursRef);
 		if (coursSnapshot.exists()) {
 			const coursData = coursSnapshot.val();
@@ -98,7 +198,7 @@ export const testFirebasePaths = async () => {
 		}
 
 		// Examiner les formations
-		const formationsRef = ref(database, '/Elearning/Formations');
+		const formationsRef = ref(database, '/elearning/specialites');
 		const formationsSnapshot = await get(formationsRef);
 		if (formationsSnapshot.exists()) {
 			const formationsData = formationsSnapshot.val();
@@ -114,7 +214,7 @@ export const testFirebasePaths = async () => {
 		}
 
 		// Examiner les inscriptions
-		const inscriptionsRef = ref(database, '/Elearning/Inscriptions');
+		const inscriptionsRef = ref(database, '/elearning/enrollments');
 		const inscriptionsSnapshot = await get(inscriptionsRef);
 		if (inscriptionsSnapshot.exists()) {
 			const inscriptionsData = inscriptionsSnapshot.val();
@@ -130,7 +230,7 @@ export const testFirebasePaths = async () => {
 		}
 
 		// Examiner les évaluations
-		const evaluationsRef = ref(database, '/Elearning/Evaluations');
+		const evaluationsRef = ref(database, '/elearning/evaluations');
 		const evaluationsSnapshot = await get(evaluationsRef);
 		if (evaluationsSnapshot.exists()) {
 			const evaluationsData = evaluationsSnapshot.val();
@@ -142,22 +242,21 @@ export const testFirebasePaths = async () => {
 				console.log(`First evaluation (${firstEvaluationId}) structure:`, evaluationsData[firstEvaluationId]);
 			}
 		} else {
-			console.log("No evaluations found in /Elearning/Evaluations path");
+			console.log("No evaluations found in /elearning/evaluations path");
 		}
 
 		// Tester d'autres chemins possibles
 		const paths = [
-			'/courses',
-			'/Formations',
-			'/Elearning/Formations',
-			'/Elearning/Cours',
-			'/Elearning/Modules',
-			'/Elearning/Evaluations',
-			'/Elearning/Inscriptions',
-			'/Formations/Formations',
-			'/users',
-			'/enrollments',
-			'/Inscriptions'
+			'/elearning/courses',
+			'/elearning/modules',
+			'/elearning/evaluations',
+			'/elearning/enrollments',
+			'/elearning/users',
+			'/elearning/feedback',
+			'/elearning/specialites',
+			'/elearning/disciplines',
+			'/elearning/progress',
+			'/elearning/settings'
 		];
 
 		for (const path of paths) {
@@ -181,28 +280,16 @@ export const testFirebasePaths = async () => {
 	}
 };
 
-// Récupérer les formations - essayer plusieurs chemins possibles
+// Récupérer les formations (spécialités dans la nouvelle structure)
 export const fetchFormationsFromDatabase = async () => {
 	try {
-		// Essayer d'abord le chemin principal
-		let result = await fetchDataFromPath('Elearning/Formations');
+		// Utiliser le nouveau chemin standardisé
+		let result = await fetchDataFromPath('elearning/specialites');
 
-		// Si aucun résultat, essayer d'autres chemins possibles
+		// Si aucun résultat, essayer le chemin des courses comme fallback
 		if (!result || result.length === 0) {
-			console.log("No formations found at Elearning/Formations, trying alternative paths");
-
-			// Essayer le chemin sans Elearning
-			result = await fetchDataFromPath('Formations');
-
-			// Essayer le chemin avec Formations/Formations
-			if (!result || result.length === 0) {
-				result = await fetchDataFromPath('Formations/Formations');
-			}
-
-			// Essayer le chemin avec courses
-			if (!result || result.length === 0) {
-				result = await fetchDataFromPath('courses');
-			}
+			console.log("No specialites found at elearning/specialites, trying courses as fallback");
+			result = await fetchDataFromPath('elearning/courses');
 		}
 
 		// Si toujours aucun résultat, utiliser des données de test
@@ -281,23 +368,15 @@ export const fetchFormationsFromDatabase = async () => {
 	}
 };
 
-// Récupérer les cours - essayer plusieurs chemins possibles
+// Récupérer les cours
 export const fetchCoursesFromDatabase = async () => {
 	try {
-		// Essayer d'abord le chemin principal
-		let result = await fetchDataFromPath('Elearning/Cours');
+		// Utiliser le nouveau chemin standardisé
+		let result = await fetchDataFromPath('elearning/courses');
 
-		// Si aucun résultat, essayer d'autres chemins possibles
+		// Si aucun résultat, utiliser des données de test
 		if (!result || result.length === 0) {
-			console.log("No courses found at Elearning/Cours, trying alternative paths");
-
-			// Essayer le chemin sans Elearning
-			result = await fetchDataFromPath('Cours');
-
-			// Essayer le chemin avec courses
-			if (!result || result.length === 0) {
-				result = await fetchDataFromPath('courses');
-			}
+			console.log("No courses found at elearning/courses, using test data");
 		}
 
 		// Si toujours aucun résultat, utiliser des données de test
@@ -311,7 +390,7 @@ export const fetchCoursesFromDatabase = async () => {
 					contenu: "Structure HTML, sélecteurs CSS, mise en page responsive...",
 					duration: "40 heures",
 					formation: "f1",
-					image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80",
+					image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80",
 					lessons: 8,
 					level: "Débutant",
 					price: 29,
@@ -405,27 +484,129 @@ export const fetchCoursesFromDatabase = async () => {
 
 // Récupérer les modules
 export const fetchModulesFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Modules');
+	return fetchDataFromPath('elearning/modules');
 };
 
 // Récupérer les spécialités
 export const fetchSpecialitesFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Specialites');
+	try {
+		console.log('Fetching specialites from database');
+
+		// Utiliser le nouveau chemin standardisé
+		const specialitesRef = ref(database, 'elearning/specialites');
+		const snapshot = await get(specialitesRef);
+
+		if (snapshot.exists()) {
+			const specialitesData = snapshot.val();
+			console.log('Specialites data:', specialitesData);
+
+			// Convertir l'objet en tableau avec les IDs
+			const specialitesArray = Object.entries(specialitesData).map(([id, data]) => ({
+				id,
+				...data
+			}));
+
+			return specialitesArray;
+		}
+
+		// Si aucune spécialité n'est trouvée, vérifier l'ancien chemin
+		const oldPathRef = ref(database, 'Elearning/Specialites');
+		const oldPathSnapshot = await get(oldPathRef);
+
+		if (oldPathSnapshot.exists()) {
+			const oldSpecialitesData = oldPathSnapshot.val();
+			console.log('Found specialites in old path:', oldSpecialitesData);
+
+			// Convertir l'objet en tableau avec les IDs
+			const specialitesArray = Object.entries(oldSpecialitesData).map(([id, data]) => ({
+				id,
+				...data
+			}));
+
+			// Migrer les données vers le nouveau chemin
+			try {
+				const newSpecialitesRef = ref(database, 'elearning/specialites');
+				await set(newSpecialitesRef, oldSpecialitesData);
+				console.log('Migrated specialites to new path');
+			} catch (migrationError) {
+				console.error('Error migrating specialites:', migrationError);
+			}
+
+			return specialitesArray;
+		}
+
+		console.log('No specialites found');
+		return [];
+	} catch (error) {
+		console.error('Error fetching specialites:', error);
+		return [];
+	}
 };
 
 // Récupérer les disciplines
 export const fetchDisciplinesFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Disciplines');
+	try {
+		console.log('Fetching disciplines from database');
+
+		// Utiliser le nouveau chemin standardisé
+		const disciplinesRef = ref(database, 'elearning/disciplines');
+		const snapshot = await get(disciplinesRef);
+
+		if (snapshot.exists()) {
+			const disciplinesData = snapshot.val();
+			console.log('Disciplines data:', disciplinesData);
+
+			// Convertir l'objet en tableau avec les IDs
+			const disciplinesArray = Object.entries(disciplinesData).map(([id, data]) => ({
+				id,
+				...data
+			}));
+
+			return disciplinesArray;
+		}
+
+		// Si aucune discipline n'est trouvée, vérifier l'ancien chemin
+		const oldPathRef = ref(database, 'Elearning/Disciplines');
+		const oldPathSnapshot = await get(oldPathRef);
+
+		if (oldPathSnapshot.exists()) {
+			const oldDisciplinesData = oldPathSnapshot.val();
+			console.log('Found disciplines in old path:', oldDisciplinesData);
+
+			// Convertir l'objet en tableau avec les IDs
+			const disciplinesArray = Object.entries(oldDisciplinesData).map(([id, data]) => ({
+				id,
+				...data
+			}));
+
+			// Migrer les données vers le nouveau chemin
+			try {
+				const newDisciplinesRef = ref(database, 'elearning/disciplines');
+				await set(newDisciplinesRef, oldDisciplinesData);
+				console.log('Migrated disciplines to new path');
+			} catch (migrationError) {
+				console.error('Error migrating disciplines:', migrationError);
+			}
+
+			return disciplinesArray;
+		}
+
+		console.log('No disciplines found');
+		return [];
+	} catch (error) {
+		console.error('Error fetching disciplines:', error);
+		return [];
+	}
 };
 
 // Récupérer les inscriptions
 export const fetchInscriptionsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Inscriptions');
+	return fetchDataFromPath('elearning/enrollments');
 };
 
 // Récupérer les enrollments (inscriptions aux cours)
 export const fetchEnrollmentsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Enrollments');
+	return fetchDataFromPath('elearning/enrollments');
 };
 
 // Récupérer les enrollments d'un utilisateur spécifique
@@ -433,8 +614,8 @@ export const fetchEnrollmentsByUser = async (userId) => {
 	try {
 		console.log(`Fetching enrollments for user ${userId}`);
 
-		// Utiliser uniquement le chemin Elearning/Enrollments/byUser/{userId}
-		const enrollmentsRef = ref(database, `Elearning/Enrollments/byUser/${userId}`);
+		// Utiliser le chemin standardisé
+		const enrollmentsRef = ref(database, `elearning/enrollments/${userId}`);
 		const snapshot = await get(enrollmentsRef);
 		let enrollments = [];
 
@@ -452,19 +633,17 @@ export const fetchEnrollmentsByUser = async (userId) => {
 
 			console.log(`Found ${enrollments.length} enrollments for user ${userId}`);
 		} else {
-			console.log(`No enrollments found for user ${userId} in Elearning/Enrollments/byUser`);
+			console.log(`No enrollments found for user ${userId} in elearning/enrollments`);
 
-			// Vérifier dans l'ancien chemin pour la compatibilité avec les données existantes
-			// Cette partie peut être supprimée une fois que toutes les données sont migrées
-			const legacyPaths = [
-				'enrollments',
-				'Inscriptions',
-				'Elearning/Inscriptions'
+			// Essayer d'autres chemins possibles comme fallback
+			const fallbackPaths = [
+				'elearning/enrollments/byUser',
+				'elearning/enrollments/byCourse'
 			];
 
-			let legacyEnrollments = [];
+			let fallbackEnrollments = [];
 
-			for (const path of legacyPaths) {
+			for (const path of fallbackPaths) {
 				try {
 					const legacyRef = ref(database, path);
 					const legacySnapshot = await get(legacyRef);
@@ -476,8 +655,8 @@ export const fetchEnrollmentsByUser = async (userId) => {
 						);
 
 						if (userEnrollments.length > 0) {
-							console.log(`Found ${userEnrollments.length} legacy enrollments in ${path}`);
-							legacyEnrollments = [...legacyEnrollments, ...userEnrollments];
+							console.log(`Found ${userEnrollments.length} fallback enrollments in ${path}`);
+							fallbackEnrollments = [...fallbackEnrollments, ...userEnrollments];
 
 							// Migrer les données vers le nouveau format
 							for (const enrollment of userEnrollments) {
@@ -485,7 +664,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 								if (courseId) {
 									try {
 										// Enregistrer dans le nouveau format
-										const newEnrollmentRef = ref(database, `Elearning/Enrollments/${courseId}/${userId}`);
+										const newEnrollmentRef = ref(database, `elearning/enrollments/${courseId}/${userId}`);
 										await set(newEnrollmentRef, {
 											userId,
 											courseId,
@@ -494,7 +673,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 										});
 
 										// Ajouter également une référence dans byUser
-										const userEnrollmentRef = ref(database, `Elearning/Enrollments/byUser/${userId}/${courseId}`);
+										const userEnrollmentRef = ref(database, `elearning/enrollments/byUser/${userId}/${courseId}`);
 										await set(userEnrollmentRef, {
 											courseId,
 											enrolledAt: enrollment.enrolledAt || enrollment.date || new Date().toISOString()
@@ -512,12 +691,12 @@ export const fetchEnrollmentsByUser = async (userId) => {
 				}
 			}
 
-			// Éliminer les doublons des inscriptions héritées
-			if (legacyEnrollments.length > 0) {
+			// Éliminer les doublons des inscriptions de fallback
+			if (fallbackEnrollments.length > 0) {
 				const uniqueEnrollments = [];
 				const courseIds = new Set();
 
-				legacyEnrollments.forEach(enrollment => {
+				fallbackEnrollments.forEach(enrollment => {
 					const courseId = enrollment.courseId || enrollment.course?.id || enrollment.course;
 					if (courseId && !courseIds.has(courseId)) {
 						courseIds.add(courseId);
@@ -531,7 +710,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 					}
 				});
 
-				console.log(`Found ${uniqueEnrollments.length} unique legacy enrollments after deduplication`);
+				console.log(`Found ${uniqueEnrollments.length} unique fallback enrollments after deduplication`);
 				enrollments = uniqueEnrollments;
 			}
 		}
@@ -563,23 +742,23 @@ export const fetchEnrollmentsByUser = async (userId) => {
 
 // Récupérer les évaluations
 export const fetchEvaluationsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Evaluations');
+	return fetchDataFromPath('elearning/evaluations');
 };
 
 // Récupérer les feedbacks
 export const fetchFeedbacksFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/Feedback');
+	return fetchDataFromPath('elearning/feedback');
 };
 
 // Récupérer les paramètres
 export const fetchSettingsFromDatabase = async () => {
-	return fetchDataFromPath('Elearning/settings');
+	return fetchDataFromPath('elearning/settings');
 };
 
 // Récupérer un utilisateur spécifique par ID
 export const fetchUserById = async (userId) => {
 	try {
-		const userRef = ref(database, `Elearning/Utilisateurs/${userId}`);
+		const userRef = ref(database, `elearning/users/${userId}`);
 		const snapshot = await get(userRef);
 
 		if (snapshot.exists()) {
@@ -601,197 +780,15 @@ export const fetchUserById = async (userId) => {
 };
 
 // Récupérer les informations complètes d'un utilisateur (y compris son rôle spécifique)
-export const fetchCompleteUserInfo = async (userId) => {
-	try {
-		console.log(`Fetching complete user info for ${userId}`);
-
-		// Vérifier si userId est valide
-		if (!userId) {
-			console.error("Invalid userId provided to fetchCompleteUserInfo");
-			return null;
-		}
-
-		// Essayer de récupérer l'utilisateur depuis le chemin /users
-		const userRef = ref(database, `users/${userId}`);
-		const userSnapshot = await get(userRef);
-		let user = null;
-
-		if (userSnapshot.exists()) {
-			user = userSnapshot.val();
-			console.log("User found in /users path:", user);
-		} else {
-			// Si l'utilisateur n'est pas trouvé dans /users, essayer dans Elearning/Utilisateurs
-			const elearningUserRef = ref(database, `Elearning/Utilisateurs/${userId}`);
-			const elearningUserSnapshot = await get(elearningUserRef);
-
-			if (elearningUserSnapshot.exists()) {
-				user = elearningUserSnapshot.val();
-				console.log("User found in Elearning/Utilisateurs path:", user);
-			} else {
-				console.error(`No user found with ID ${userId} in any path`);
-				// Créer un utilisateur par défaut basé sur l'authentification Firebase
-				const auth = getAuth();
-				if (auth.currentUser && auth.currentUser.uid === userId) {
-					user = {
-						id: userId,
-						nom: auth.currentUser.displayName?.split(' ')[1] || "",
-						prenom: auth.currentUser.displayName?.split(' ')[0] || auth.currentUser.displayName || "Utilisateur",
-						email: auth.currentUser.email || "",
-						createdAt: new Date().toISOString(),
-						userType: "apprenant"
-					};
-					console.log("Created default user from auth info:", user);
-				} else {
-					return null;
-				}
-			}
-		}
-
-		let roleInfo = null;
-		let inscriptions = [];
-		let enrollments = [];
-
-		// Déterminer le type d'utilisateur (avec valeur par défaut)
-		const userType = user.userType || "apprenant";
-		console.log(`User type: ${userType}`);
-
-		// Récupérer les informations spécifiques au rôle
-		try {
-			if (userType === "apprenant") {
-				// Récupérer les informations de l'apprenant
-				const apprenantRef = ref(database, `Elearning/Apprenants/${userId}`);
-				const apprenantSnapshot = await get(apprenantRef);
-
-				if (apprenantSnapshot.exists()) {
-					roleInfo = apprenantSnapshot.val();
-					console.log("Apprenant role info:", roleInfo);
-				} else {
-					console.log(`No apprenant record found for ${userId}, creating default`);
-					roleInfo = {
-						id: userId,
-						utilisateurId: userId,
-						progression: 0,
-						avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-					};
-				}
-
-				// Récupérer les inscriptions de l'apprenant
-				try {
-					inscriptions = await fetchInscriptionsByApprenant(userId);
-					console.log("Inscriptions:", inscriptions);
-				} catch (inscriptionsError) {
-					console.error("Error fetching inscriptions:", inscriptionsError);
-					inscriptions = [];
-				}
-
-				// Récupérer les enrollments de l'apprenant
-				try {
-					enrollments = await fetchEnrollmentsByUser(userId);
-					console.log("Enrollments:", enrollments);
-				} catch (enrollmentsError) {
-					console.error("Error fetching enrollments:", enrollmentsError);
-					enrollments = [];
-				}
-			} else if (userType === "formateur") {
-				// Récupérer les informations du formateur
-				const formateurRef = ref(database, `Elearning/Formateurs/${userId}`);
-				const formateurSnapshot = await get(formateurRef);
-
-				if (formateurSnapshot.exists()) {
-					roleInfo = formateurSnapshot.val();
-					console.log("Formateur role info:", roleInfo);
-
-					// Récupérer les formations du formateur
-					try {
-						roleInfo.formations = await fetchFormationsByFormateur(userId);
-					} catch (formationsError) {
-						console.error("Error fetching formateur's formations:", formationsError);
-						roleInfo.formations = [];
-					}
-				} else {
-					console.log(`No formateur record found for ${userId}, creating default`);
-					roleInfo = {
-						id: userId,
-						utilisateurId: userId,
-						formations: [],
-						avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-					};
-				}
-			} else if (userType === "administrateur") {
-				// Récupérer les informations de l'administrateur
-				const adminRef = ref(database, `Elearning/Administrateurs/${userId}`);
-				const adminSnapshot = await get(adminRef);
-
-				if (adminSnapshot.exists()) {
-					roleInfo = adminSnapshot.val();
-					console.log("Admin role info:", roleInfo);
-				} else {
-					console.log(`No admin record found for ${userId}, creating default`);
-					roleInfo = {
-						id: userId,
-						utilisateurId: userId,
-						avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-					};
-				}
-			} else {
-				console.log(`Unknown user type: ${userType}, creating default role info`);
-				roleInfo = {
-					id: userId,
-					utilisateurId: userId,
-					avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-				};
-			}
-		} catch (roleError) {
-			console.error("Error fetching role info:", roleError);
-			roleInfo = {
-				id: userId,
-				utilisateurId: userId,
-				progression: 0,
-				avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-			};
-		}
-
-		// Construire et retourner l'objet utilisateur complet
-		const completeUserInfo = {
-			...user,
-			roleInfo: roleInfo || {
-				avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-				progression: 0
-			},
-			inscriptions: inscriptions || [],
-			enrollments: enrollments || []
-		};
-
-		console.log("Complete user info:", completeUserInfo);
-		return completeUserInfo;
-	} catch (error) {
-		console.error(`Error fetching complete user info for ${userId}:`, error);
-		// En cas d'erreur, retourner des données de test
-		return {
-			id: userId,
-			nom: "Utilisateur",
-			prenom: "",
-			email: "utilisateur@email.com",
-			createdAt: new Date().toISOString(),
-			userType: "apprenant",
-			roleInfo: {
-				id: userId,
-				utilisateurId: userId,
-				progression: 0,
-				avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-			},
-			inscriptions: [],
-			enrollments: []
-		};
-	}
-};
+// Cette fonction a été déplacée dans un fichier séparé pour plus de clarté
+export { fetchCompleteUserInfo };
 
 // Note: L'ancienne version de fetchCourseById a été supprimée car elle est remplacée par une version plus complète
 
 // Récupérer une formation spécifique par ID
 export const fetchFormationById = async (formationId) => {
 	try {
-		const formationRef = ref(database, `Elearning/Formations/${formationId}`);
+		const formationRef = ref(database, `elearning/specialites/${formationId}`);
 		const snapshot = await get(formationRef);
 
 		if (snapshot.exists()) {
@@ -807,14 +804,20 @@ export const fetchFormationById = async (formationId) => {
 // Récupérer les inscriptions d'un apprenant
 export const fetchInscriptionsByApprenant = async (apprenantId) => {
 	try {
-		const inscriptionsRef = ref(database, 'Elearning/Inscriptions');
+		// Utiliser le nouveau chemin standardisé
+		const inscriptionsRef = ref(database, `elearning/enrollments/byUser/${apprenantId}`);
 		const snapshot = await get(inscriptionsRef);
 
 		if (snapshot.exists()) {
 			const inscriptions = snapshot.val();
-			const apprenantInscriptions = Object.values(inscriptions).filter(
-				(inscription) => inscription.apprenant === apprenantId
-			);
+			// Convertir en tableau avec format standardisé
+			const apprenantInscriptions = Object.entries(inscriptions).map(([courseId, data]) => ({
+				id: `${apprenantId}_${courseId}`,
+				apprenant: apprenantId,
+				formation: courseId,
+				dateInscription: data.enrolledAt,
+				statut: data.status || 'active'
+			}));
 			return apprenantInscriptions;
 		}
 		return [];
@@ -840,16 +843,117 @@ export const fetchInscriptionsByApprenant = async (apprenantId) => {
 	}
 };
 
+// Récupérer les inscriptions pour un cours spécifique
+export const fetchCourseEnrollments = async (courseId) => {
+	try {
+		console.log(`Fetching enrollments for course ${courseId}`);
+
+		// Vérifier d'abord dans le nouveau chemin standardisé
+		const enrollmentsRef = ref(database, `elearning/enrollments/byCourse/${courseId}`);
+		const snapshot = await get(enrollmentsRef);
+
+		if (snapshot.exists()) {
+			const enrollmentsData = snapshot.val();
+			console.log(`Found ${Object.keys(enrollmentsData).length} enrollments in new path`);
+
+			// Convertir l'objet en tableau avec les IDs
+			const enrollmentsArray = Object.entries(enrollmentsData).map(([userId, data]) => ({
+				userId,
+				courseId,
+				...data
+			}));
+
+			return enrollmentsArray;
+		}
+
+		// Vérifier dans l'ancien chemin
+		const oldPathRef = ref(database, `Elearning/Cours/${courseId}/enrollments`);
+		const oldPathSnapshot = await get(oldPathRef);
+
+		if (oldPathSnapshot.exists()) {
+			const oldEnrollmentsData = oldPathSnapshot.val();
+			console.log(`Found ${Object.keys(oldEnrollmentsData).length} enrollments in old path`);
+
+			// Convertir l'objet en tableau avec les IDs
+			const enrollmentsArray = Object.entries(oldEnrollmentsData).map(([userId, data]) => ({
+				userId,
+				courseId,
+				...data
+			}));
+
+			// Migrer les données vers le nouveau chemin
+			try {
+				for (const enrollment of enrollmentsArray) {
+					const newEnrollmentRef = ref(database, `elearning/enrollments/byCourse/${courseId}/${enrollment.userId}`);
+					await set(newEnrollmentRef, {
+						userId: enrollment.userId,
+						courseId,
+						enrolledAt: enrollment.enrolledAt || new Date().toISOString(),
+						status: 'active'
+					});
+
+					// Ajouter également une référence dans byUser
+					const userEnrollmentRef = ref(database, `elearning/enrollments/byUser/${enrollment.userId}/${courseId}`);
+					await set(userEnrollmentRef, {
+						courseId,
+						enrolledAt: enrollment.enrolledAt || new Date().toISOString(),
+						status: 'active'
+					});
+				}
+				console.log(`Migrated ${enrollmentsArray.length} enrollments to new path`);
+			} catch (migrationError) {
+				console.error('Error migrating enrollments:', migrationError);
+			}
+
+			return enrollmentsArray;
+		}
+
+		// Vérifier dans le chemin des progressions
+		const progressionsRef = ref(database, `elearning/progress`);
+		const progressionsSnapshot = await get(progressionsRef);
+
+		if (progressionsSnapshot.exists()) {
+			const progressionsData = progressionsSnapshot.val();
+			const enrollmentsArray = [];
+
+			// Parcourir les utilisateurs et leurs progressions
+			Object.entries(progressionsData).forEach(([userId, userProgressions]) => {
+				if (userProgressions && userProgressions[courseId]) {
+					enrollmentsArray.push({
+						userId,
+						courseId,
+						enrolledAt: userProgressions[courseId].startDate || new Date().toISOString(),
+						progress: userProgressions[courseId].progress || 0
+					});
+				}
+			});
+
+			if (enrollmentsArray.length > 0) {
+				console.log(`Found ${enrollmentsArray.length} enrollments in progressions`);
+				return enrollmentsArray;
+			}
+		}
+
+		// Aucune inscription trouvée
+		console.log(`No enrollments found for course ${courseId}`);
+		return [];
+	} catch (error) {
+		console.error(`Error fetching enrollments for course ${courseId}:`, error);
+		return [];
+	}
+};
+
 // Récupérer les formations d'un formateur
 export const fetchFormationsByFormateur = async (formateurId) => {
 	try {
-		const formationsRef = ref(database, 'Elearning/Formations');
+		// Utiliser le nouveau chemin standardisé
+		const formationsRef = ref(database, 'elearning/courses');
 		const snapshot = await get(formationsRef);
 
 		if (snapshot.exists()) {
 			const formations = snapshot.val();
 			const formateurFormations = Object.values(formations).filter(
-				(formation) => formation.formateur === formateurId
+				(formation) => formation.instructorId === formateurId
 			);
 			return formateurFormations;
 		}
@@ -865,8 +969,8 @@ export const fetchCourseById = async (courseId) => {
 	try {
 		console.log(`Loading course with ID: ${courseId}`);
 
-		// Essayer d'abord directement dans le chemin Elearning/Cours/{courseId}
-		const directCourseRef = ref(database, `Elearning/Cours/${courseId}`);
+		// Utiliser le nouveau chemin standardisé
+		const directCourseRef = ref(database, `elearning/courses/${courseId}`);
 		const directCourseSnapshot = await get(directCourseRef);
 
 		if (directCourseSnapshot.exists()) {
@@ -881,16 +985,31 @@ export const fetchCourseById = async (courseId) => {
 
 			// Récupérer les modules du cours
 			const modulesData = await fetchModulesByCourse(courseId);
+
+			// Récupérer les informations du formateur si un instructorId est présent
+			let instructorData = null;
+			if (course.instructorId) {
+				console.log(`Course has instructorId ${course.instructorId}, fetching instructor data`);
+				instructorData = await fetchInstructorById(course.instructorId);
+			}
+
+			// Créer l'objet cours complet
 			const courseWithModules = {
 				...course,
-				modules: modulesData
+				modules: modulesData,
+				// Ajouter les informations du formateur
+				instructor: instructorData || course.instructor || {
+					name: "Formateur",
+					bio: "Informations du formateur non disponibles",
+					avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+				}
 			};
-			console.log("Final course data:", courseWithModules);
+			console.log("Final course data with instructor:", courseWithModules);
 			return courseWithModules;
 		}
 
-		// Essayer ensuite dans le chemin Elearning/Cours (collection)
-		const coursRef = ref(database, 'Elearning/Cours');
+		// Si non trouvé, essayer dans la collection complète
+		const coursRef = ref(database, 'elearning/courses');
 		const coursSnapshot = await get(coursRef);
 
 		if (coursSnapshot.exists()) {
@@ -907,17 +1026,32 @@ export const fetchCourseById = async (courseId) => {
 			if (course) {
 				// Récupérer les modules du cours
 				const modulesData = await fetchModulesByCourse(courseId);
+
+				// Récupérer les informations du formateur si un instructorId est présent
+				let instructorData = null;
+				if (course.instructorId) {
+					console.log(`Course has instructorId ${course.instructorId}, fetching instructor data`);
+					instructorData = await fetchInstructorById(course.instructorId);
+				}
+
+				// Créer l'objet cours complet
 				const courseWithModules = {
 					...course,
-					modules: modulesData
+					modules: modulesData,
+					// Ajouter les informations du formateur
+					instructor: instructorData || course.instructor || {
+						name: "Formateur",
+						bio: "Informations du formateur non disponibles",
+						avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+					}
 				};
-				console.log("Final course data:", courseWithModules);
+				console.log("Final course data with instructor:", courseWithModules);
 				return courseWithModules;
 			}
 		}
 
-		// Si non trouvé, essayer dans le chemin /courses
-		const altCoursesRef = ref(database, 'courses');
+		// Si toujours pas trouvé, essayer dans l'ancien chemin comme fallback
+		const altCoursesRef = ref(database, 'elearning/courses');
 		const altCoursesSnapshot = await get(altCoursesRef);
 
 		if (altCoursesSnapshot.exists()) {
@@ -936,8 +1070,22 @@ export const fetchCourseById = async (courseId) => {
 			id: courseId,
 			title: `Cours ${courseId}`,
 			description: "Description non disponible",
-			image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80",
-			modules: []
+			// Utiliser une image par défaut de haute qualité
+			image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80",
+			modules: [],
+			// Ajouter des informations sur le formateur
+			instructor: {
+				name: "Formateur",
+				bio: "Informations du formateur non disponibles",
+				avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+			},
+			// Ajouter d'autres informations utiles
+			duration: "Non spécifié",
+			lessons: 0,
+			students: 0,
+			topics: ["Contenu non disponible"],
+			category: "Non classé",
+			level: "Non spécifié"
 		};
 	} catch (error) {
 		console.error(`Error fetching course with ID ${courseId}:`, error);
@@ -951,7 +1099,7 @@ export const fetchModulesByCourse = async (courseId) => {
 		console.log(`Fetching modules for course ${courseId}`);
 
 		// Vérifier d'abord si les modules sont directement dans le cours
-		const courseRef = ref(database, `Elearning/Cours/${courseId}`);
+		const courseRef = ref(database, `elearning/courses/${courseId}`);
 		const courseSnapshot = await get(courseRef);
 
 		if (courseSnapshot.exists()) {
@@ -978,8 +1126,8 @@ export const fetchModulesByCourse = async (courseId) => {
 			}
 		}
 
-		// Si les modules ne sont pas directement dans le cours, essayer dans Elearning/Modules
-		const modulesRef = ref(database, 'Elearning/Modules');
+		// Si les modules ne sont pas directement dans le cours, essayer dans elearning/modules
+		const modulesRef = ref(database, 'elearning/modules');
 		const modulesSnapshot = await get(modulesRef);
 
 		if (modulesSnapshot.exists()) {
@@ -991,7 +1139,7 @@ export const fetchModulesByCourse = async (courseId) => {
 
 			// Filtrer les modules qui appartiennent au cours spécifié
 			const courseModules = allModules.filter(module => module.courseId === courseId);
-			console.log(`Found ${courseModules.length} modules for course ${courseId} in Elearning/Modules`);
+			console.log(`Found ${courseModules.length} modules for course ${courseId} in elearning/modules`);
 
 			// Récupérer les évaluations pour chaque module
 			for (const module of courseModules) {
@@ -1018,7 +1166,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 		console.log(`Fetching evaluations for module ${moduleId}`);
 
 		// Vérifier d'abord si les évaluations sont directement dans le module
-		const moduleRef = ref(database, `Elearning/Modules/${moduleId}`);
+		const moduleRef = ref(database, `elearning/modules/${moduleId}`);
 		const moduleSnapshot = await get(moduleRef);
 
 		if (moduleSnapshot.exists()) {
@@ -1038,8 +1186,8 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 			}
 		}
 
-		// Si les évaluations ne sont pas directement dans le module, essayer dans Elearning/Evaluations
-		const evaluationsRef = ref(database, 'Elearning/Evaluations');
+		// Si les évaluations ne sont pas directement dans le module, essayer dans elearning/evaluations
+		const evaluationsRef = ref(database, 'elearning/evaluations');
 		const evaluationsSnapshot = await get(evaluationsRef);
 
 		if (evaluationsSnapshot.exists()) {
@@ -1129,7 +1277,7 @@ export const createTestModulesForCourse = async (courseId) => {
 		console.log(`Creating test modules for course ${courseId}`);
 
 		// Vérifier si le cours existe
-		const courseRef = ref(database, `Elearning/Cours/${courseId}`);
+		const courseRef = ref(database, `elearning/courses/${courseId}`);
 		const courseSnapshot = await get(courseRef);
 
 		if (!courseSnapshot.exists()) {
@@ -1206,7 +1354,7 @@ export const addModuleToCourse = async (courseId, moduleData) => {
 		};
 
 		// Mettre à jour le cours avec le nouveau module
-		const modulesRef = ref(database, `Elearning/Cours/${courseId}/modules/${moduleId}`);
+		const modulesRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}`);
 		await set(modulesRef, newModuleData);
 
 		console.log(`Successfully added module ${moduleId} to course ${courseId}`);
@@ -1223,7 +1371,7 @@ export const addEvaluationToModule = async (courseId, moduleId, evaluationData) 
 		console.log(`Adding evaluation to module ${moduleId}`);
 
 		// Vérifier si le module existe
-		const moduleRef = ref(database, `Elearning/Cours/${courseId}/modules/${moduleId}`);
+		const moduleRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}`);
 		const moduleSnapshot = await get(moduleRef);
 
 		if (!moduleSnapshot.exists()) {
@@ -1242,7 +1390,7 @@ export const addEvaluationToModule = async (courseId, moduleId, evaluationData) 
 		};
 
 		// Mettre à jour le module avec la nouvelle évaluation
-		const evalRef = ref(database, `Elearning/Cours/${courseId}/modules/${moduleId}/evaluations/${evalId}`);
+		const evalRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}/evaluations/${evalId}`);
 		await set(evalRef, newEvaluationData);
 
 		console.log(`Successfully added evaluation ${evalId} to module ${moduleId}`);

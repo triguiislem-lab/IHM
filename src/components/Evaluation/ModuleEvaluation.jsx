@@ -38,10 +38,10 @@ const ModuleEvaluation = ({
       setError("");
 
       try {
-        // Vérifier d'abord dans Elearning/Evaluations/{moduleId}
+        // Vérifier d'abord dans le chemin standardisé
         const evaluationsRef = ref(
           database,
-          `Elearning/Evaluations/${moduleId}`
+          `elearning/evaluations/${moduleId}`
         );
         const snapshot = await get(evaluationsRef);
 
@@ -70,11 +70,11 @@ const ModuleEvaluation = ({
             `No evaluations found for module ${moduleId}, checking in course modules`
           );
 
-          // Vérifier dans Elearning/Cours/{courseId}/modules/{moduleId}/evaluations
+          // Vérifier dans le chemin standardisé
           if (courseId) {
             const moduleEvaluationsRef = ref(
               database,
-              `Elearning/Cours/${courseId}/modules/${moduleId}/evaluations`
+              `elearning/courses/${courseId}/modules/${moduleId}/evaluations`
             );
             const moduleSnapshot = await get(moduleEvaluationsRef);
 
@@ -141,7 +141,7 @@ const ModuleEvaluation = ({
       if (courseId) {
         const moduleRef = ref(
           database,
-          `Elearning/Cours/${courseId}/modules/${moduleId}`
+          `elearning/courses/${courseId}/modules/${moduleId}`
         );
         const moduleSnapshot = await get(moduleRef);
 
@@ -156,7 +156,7 @@ const ModuleEvaluation = ({
       // Enregistrer le quiz dans Firebase
       const quizRef = ref(
         database,
-        `Elearning/Evaluations/${moduleId}/static_quiz`
+        `elearning/evaluations/${moduleId}/static_quiz`
       );
       await set(quizRef, staticQuiz);
 
@@ -184,7 +184,7 @@ const ModuleEvaluation = ({
       try {
         const progressRef = ref(
           database,
-          `Elearning/Progression/${auth.currentUser.uid}/${courseId}/${moduleId}`
+          `elearning/progress/${auth.currentUser.uid}/${courseId}/${moduleId}`
         );
         const snapshot = await get(progressRef);
 
@@ -217,7 +217,7 @@ const ModuleEvaluation = ({
         try {
           const progressRef = ref(
             database,
-            `Elearning/Progression/${auth.currentUser.uid}/${courseId}/${moduleId}`
+            `elearning/progress/${auth.currentUser.uid}/${courseId}/${moduleId}`
           );
 
           // Récupérer la progression existante pour la mettre à jour

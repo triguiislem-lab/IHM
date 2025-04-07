@@ -38,10 +38,10 @@ const Profile = () => {
           } else {
             console.error("User info is null");
             setUserInfo({
-              prenom: "Utilisateur",
-              nom: "",
+              firstName: "Utilisateur",
+              lastName: "",
               email: user.email || "",
-              userType: "apprenant",
+              role: "student",
               roleInfo: {
                 progression: 0,
                 avatar:
@@ -60,10 +60,10 @@ const Profile = () => {
         // Créer un utilisateur par défaut en cas d'erreur
         if (auth.currentUser) {
           setUserInfo({
-            prenom: "Utilisateur",
-            nom: "",
+            firstName: "Utilisateur",
+            lastName: "",
             email: auth.currentUser.email || "",
-            userType: "apprenant",
+            role: "student",
             roleInfo: {
               progression: 0,
               avatar:
@@ -204,10 +204,17 @@ const Profile = () => {
               {activeTab === "profile" && (
                 <div>
                   <h1 className="text-3xl font-bold">
-                    {userInfo.prenom} {userInfo.nom}
+                    {userInfo.firstName || userInfo.prenom}{" "}
+                    {userInfo.lastName || userInfo.nom}
                   </h1>
                   <p className="text-gray-600 mt-1 capitalize">
-                    {userInfo.userType}
+                    {userInfo.role === "student"
+                      ? "Apprenant"
+                      : userInfo.role === "instructor"
+                      ? "Formateur"
+                      : userInfo.role === "admin"
+                      ? "Administrateur"
+                      : userInfo.userType || userInfo.role || "Utilisateur"}
                   </p>
                 </div>
               )}
@@ -238,7 +245,8 @@ const Profile = () => {
                       <div>
                         <p className="text-sm text-gray-500">Nom complet</p>
                         <p>
-                          {userInfo.prenom} {userInfo.nom}
+                          {userInfo.firstName || userInfo.prenom}{" "}
+                          {userInfo.lastName || userInfo.nom}
                         </p>
                       </div>
                     </div>
@@ -261,25 +269,29 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    {userInfo.userType === "apprenant" && userInfo.roleInfo && (
-                      <div className="flex items-center gap-3">
-                        <MdStar className="text-secondary text-xl" />
-                        <div>
-                          <p className="text-sm text-gray-500">Progression</p>
-                          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-                            <div
-                              className="bg-secondary h-2.5 rounded-full"
-                              style={{
-                                width: `${userInfo.roleInfo.progression || 0}%`,
-                              }}
-                            ></div>
+                    {(userInfo.role === "student" ||
+                      userInfo.userType === "apprenant") &&
+                      userInfo.roleInfo && (
+                        <div className="flex items-center gap-3">
+                          <MdStar className="text-secondary text-xl" />
+                          <div>
+                            <p className="text-sm text-gray-500">Progression</p>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                              <div
+                                className="bg-secondary h-2.5 rounded-full"
+                                style={{
+                                  width: `${
+                                    userInfo.roleInfo.progression || 0
+                                  }%`,
+                                }}
+                              ></div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {userInfo.roleInfo.progression || 0}% complété
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {userInfo.roleInfo.progression || 0}% complété
-                          </p>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
 
                   <div className="space-y-4">

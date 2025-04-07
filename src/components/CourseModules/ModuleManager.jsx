@@ -13,6 +13,8 @@ import {
   addModuleToCourse,
   addEvaluationToModule,
   createTestModulesForCourse,
+  checkUserEnrollment,
+  syncEnrollmentStatus,
 } from "../../utils/firebaseUtils";
 
 const ModuleManager = ({ course, onModulesUpdated }) => {
@@ -196,37 +198,43 @@ const ModuleManager = ({ course, onModulesUpdated }) => {
               </div>
 
               {/* Liste des évaluations du module */}
-              {module.evaluations && Object.keys(module.evaluations).length > 0 && (
-                <div className="mt-3 pl-4 border-l-2 border-gray-200">
-                  <h5 className="text-sm font-medium mb-2">Évaluations</h5>
-                  <div className="space-y-2">
-                    {Object.entries(module.evaluations).map(([evalId, evaluation]) => (
-                      <div
-                        key={evalId}
-                        className="flex justify-between items-center p-2 bg-gray-50 rounded-md"
-                      >
-                        <div className="flex items-center gap-2">
-                          {evaluation.type === "quiz" ? (
-                            <MdQuiz className="text-blue-600" />
-                          ) : (
-                            <MdAssignment className="text-orange-600" />
-                          )}
-                          <span>{evaluation.title}</span>
-                        </div>
-                        <span className="text-sm font-medium">
-                          Score: {evaluation.score || 0}/{evaluation.maxScore || 100}
-                        </span>
-                      </div>
-                    ))}
+              {module.evaluations &&
+                Object.keys(module.evaluations).length > 0 && (
+                  <div className="mt-3 pl-4 border-l-2 border-gray-200">
+                    <h5 className="text-sm font-medium mb-2">Évaluations</h5>
+                    <div className="space-y-2">
+                      {Object.entries(module.evaluations).map(
+                        ([evalId, evaluation]) => (
+                          <div
+                            key={evalId}
+                            className="flex justify-between items-center p-2 bg-gray-50 rounded-md"
+                          >
+                            <div className="flex items-center gap-2">
+                              {evaluation.type === "quiz" ? (
+                                <MdQuiz className="text-blue-600" />
+                              ) : (
+                                <MdAssignment className="text-orange-600" />
+                              )}
+                              <span>{evaluation.title}</span>
+                            </div>
+                            <span className="text-sm font-medium">
+                              Score: {evaluation.score || 0}/
+                              {evaluation.maxScore || 100}
+                            </span>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           ))}
         </div>
       ) : (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
-          <p className="text-gray-600 mb-4">Aucun module n'a été ajouté à ce cours.</p>
+          <p className="text-gray-600 mb-4">
+            Aucun module n'a été ajouté à ce cours.
+          </p>
           <p className="text-sm text-gray-500">
             Utilisez les boutons ci-dessus pour ajouter des modules.
           </p>
@@ -329,7 +337,8 @@ const ModuleManager = ({ course, onModulesUpdated }) => {
             className="bg-white rounded-lg p-6 w-full max-w-md"
           >
             <h3 className="text-xl font-bold mb-4">
-              Ajouter une évaluation au module "{selectedModule.title || selectedModule.titre}"
+              Ajouter une évaluation au module "
+              {selectedModule.title || selectedModule.titre}"
             </h3>
             <form onSubmit={handleAddEvaluation}>
               <div className="mb-4">

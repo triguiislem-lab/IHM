@@ -6,42 +6,57 @@ import {
   Clock,
   Star,
   Library,
+  BookOpen,
   Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { fetchCoursesFromDatabase } from "../utils/firebaseUtils";
+import {
+  fetchCoursesFromDatabase,
+  fetchSpecialitesFromDatabase,
+  fetchDisciplinesFromDatabase,
+} from "../utils/firebaseUtils";
 
 const CoursesPage = () => {
   const [courses, setCourses] = useState([]);
+  const [specialites, setSpecialites] = useState([]);
+  const [disciplines, setDisciplines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSpecialite, setSelectedSpecialite] = useState("");
+  const [selectedDiscipline, setSelectedDiscipline] = useState("");
   const levels = ["Débutant", "Intermédiaire", "Avancé"];
 
   useEffect(() => {
-    const loadCourses = async () => {
+    const loadData = async () => {
       try {
+        // Charger les cours
         const coursesData = await fetchCoursesFromDatabase();
         setCourses(coursesData);
+
+        // Charger les spécialités
+        const specialitesData = await fetchSpecialitesFromDatabase();
+        setSpecialites(specialitesData);
+
+        // Charger les disciplines
+        const disciplinesData = await fetchDisciplinesFromDatabase();
+        setDisciplines(disciplinesData);
       } catch (error) {
-        console.error("Error loading courses:", error);
+        console.error("Error loading data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadCourses();
+    loadData();
   }, []);
 
-  // Get unique categories from courses
-  const categories = [
-    ...new Set(
-      courses
-        .map((course) => course.category || "Uncategorized")
-        .filter(Boolean)
-    ),
-  ];
+  // Filtrer les disciplines en fonction de la spécialité sélectionnée
+  const filteredDisciplines = disciplines.filter(
+    (discipline) =>
+      selectedSpecialite === "" ||
+      discipline.specialiteId === selectedSpecialite
+  );
 
   const filteredCourses = courses.filter((course) => {
     // Vérifier si le cours a un titre ou utiliser un titre alternatif (titre ou "")
@@ -55,11 +70,14 @@ const CoursesPage = () => {
       term === "" || title.includes(term) || description.includes(term);
     const matchesLevel =
       selectedLevel === "" || (course.level || "Beginner") === selectedLevel;
-    const matchesCategory =
-      selectedCategory === "" ||
-      (course.category || "Uncategorized") === selectedCategory;
+    const matchesSpecialite =
+      selectedSpecialite === "" || course.specialiteId === selectedSpecialite;
+    const matchesDiscipline =
+      selectedDiscipline === "" || course.disciplineId === selectedDiscipline;
 
-    return matchesSearch && matchesLevel && matchesCategory;
+    return (
+      matchesSearch && matchesLevel && matchesSpecialite && matchesDiscipline
+    );
   });
 
   if (loading) {
@@ -118,17 +136,40 @@ const CoursesPage = () => {
             <div className="relative">
               <select
                 className="pl-10 pr-4 py-2 border rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-secondary/20"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                value={selectedSpecialite}
+                onChange={(e) => {
+                  setSelectedSpecialite(e.target.value);
+                  setSelectedDiscipline(""); // Réinitialiser la discipline lorsqu'on change de spécialité
+                }}
               >
-                <option value="">Toutes les catégories</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
+                <option value="">Toutes les spécialités</option>
+                {specialites.map((specialite) => (
+                  <option key={specialite.id} value={specialite.id}>
+                    {specialite.name}
                   </option>
                 ))}
               </select>
               <Library
+                className="absolute left-3 top-2.5 text-gray-400"
+                size={20}
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                className="pl-10 pr-4 py-2 border rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-secondary/20"
+                value={selectedDiscipline}
+                onChange={(e) => setSelectedDiscipline(e.target.value)}
+                disabled={selectedSpecialite === ""}
+              >
+                <option value="">Toutes les disciplines</option>
+                {filteredDisciplines.map((discipline) => (
+                  <option key={discipline.id} value={discipline.id}>
+                    {discipline.name}
+                  </option>
+                ))}
+              </select>
+              <BookOpen
                 className="absolute left-3 top-2.5 text-gray-400"
                 size={20}
               />
@@ -150,13 +191,17 @@ const CoursesPage = () => {
                 <img
                   src={
                     course.image ||
-                    "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80"
+                    "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80"
                   }
                   alt={course.title || course.titre || "Course"}
                   className="w-full h-56 object-cover"
                   onError={(e) => {
+                    console.log(
+                      "CoursesPage image failed to load:",
+                      e.target.src
+                    );
                     e.target.src =
-                      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80";
+                      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
                   }}
                 />
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 shadow-md">

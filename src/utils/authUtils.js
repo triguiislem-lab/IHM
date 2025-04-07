@@ -4,12 +4,12 @@ import {
 	signInWithEmailAndPassword,
 	updateProfile,
 } from 'firebase/auth';
-import { getDatabase, ref, set, get } from 'firebase/database';
+import { ref, set, get } from 'firebase/database';
 import { database } from '../../firebaseConfig';
 
 const auth = getAuth();
 
-export const registerUser = async (email, password, fullName, userType) => {
+export const registerUser = async (email, password, firstName, lastName, bio, phone, userType) => {
 	// Create user with email and password
 	const userCredential = await createUserWithEmailAndPassword(
 		auth,
@@ -19,17 +19,23 @@ export const registerUser = async (email, password, fullName, userType) => {
 	const user = userCredential.user;
 
 	// Update user profile with full name
+	const fullName = `${firstName} ${lastName}`.trim();
 	await updateProfile(user, {
 		displayName: fullName,
 	});
 
-	// Store additional user data in Realtime Database
-	const userRef = ref(database, `users/${user.uid}`);
+	// Store additional user data in Realtime Database using standardized path
+	const userRef = ref(database, `elearning/users/${user.uid}`);
 	await set(userRef, {
-		fullName,
+		id: user.uid,
+		firstName,
+		lastName,
 		email,
-		userType,
+		bio: bio || '',
+		phone: phone || '',
+		role: userType, // Using 'role' instead of 'userType' for standardization
 		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
 	});
 
 	return user;
@@ -43,13 +49,20 @@ export const loginUser = async (email, password) => {
 	);
 	const user = userCredential.user;
 
-	// Fetch user type from database
-	const userRef = ref(database, `users/${user.uid}`);
+	// Fetch user data from database using standardized path
+	const userRef = ref(database, `elearning/users/${user.uid}`);
 	const snapshot = await get(userRef);
-	const userData = snapshot.val();
+	let userData = snapshot.val();
+
+	// If not found in standardized path, try legacy path
+	if (!userData) {
+		const legacyUserRef = ref(database, `users/${user.uid}`);
+		const legacySnapshot = await get(legacyUserRef);
+		userData = legacySnapshot.val();
+	}
 
 	return {
 		user,
-		userType: userData?.userType,
+		userType: userData?.role || userData?.userType, // Check both role and userType fields
 	};
 };

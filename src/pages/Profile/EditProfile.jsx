@@ -12,16 +12,20 @@ const EditProfile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    prenom: "",
-    nom: "",
+    // Champs de base
+    firstName: "",
+    lastName: "",
     email: "",
+    role: "",
     avatar: "",
-    // Champs supplémentaires qui pourraient être présents dans Firebase
-    telephone: "",
-    adresse: "",
-    ville: "",
-    codePostal: "",
-    pays: "",
+    // Champs de contact
+    phone: "",
+    country: "",
+    // Champs spécifiques aux formateurs
+    expertise: "",
+    // Champs système (non modifiables)
+    createdAt: "",
+    updatedAt: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -46,23 +50,33 @@ const EditProfile = () => {
             setUserInfo(info);
             // Initialiser tous les champs du formulaire avec les valeurs existantes
             setFormData({
-              prenom: info.prenom || "",
-              nom: info.nom || "",
+              // Champs de base
+              firstName: info.firstName || info.prenom || "",
+              lastName: info.lastName || info.nom || "",
               email: info.email || user.email || "",
-              avatar: info.roleInfo?.avatar || "",
-              telephone: info.telephone || "",
-              adresse: info.adresse || "",
-              ville: info.ville || "",
-              codePostal: info.codePostal || "",
-              pays: info.pays || "",
+              role: info.role || info.userType || "student",
+              avatar: info.avatar || info.roleInfo?.avatar || "",
+              // Champs de contact
+              phone: info.phone || info.telephone || "",
+              country: info.country || info.pays || "",
+              // Champs spécifiques aux formateurs
+              expertise: info.expertise || "",
+              // Champs système (non modifiables)
+              createdAt: info.createdAt || new Date().toISOString(),
+              updatedAt: info.updatedAt || new Date().toISOString(),
             });
           } else {
             console.error("User info is null");
             setUserInfo({
-              prenom: "",
-              nom: "",
+              firstName: "",
+              lastName: "",
               email: user.email || "",
-              userType: "apprenant",
+              role: "student",
+              avatar:
+                "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
+              phone: "",
+              country: "",
+              expertise: "",
               roleInfo: {
                 progression: 0,
                 avatar:
@@ -70,18 +84,24 @@ const EditProfile = () => {
               },
               enrollments: [],
               createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             });
             setFormData({
-              prenom: "",
-              nom: "",
+              // Champs de base
+              firstName: "",
+              lastName: "",
               email: user.email || "",
+              role: "student",
               avatar:
                 "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-              telephone: "",
-              adresse: "",
-              ville: "",
-              codePostal: "",
-              pays: "",
+              // Champs de contact
+              phone: "",
+              country: "",
+              // Champs spécifiques aux formateurs
+              expertise: "",
+              // Champs système (non modifiables)
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             });
           }
         } else {
@@ -133,56 +153,38 @@ const EditProfile = () => {
       setError("");
 
       // Mettre à jour les informations de base de l'utilisateur
-      const userRef = ref(
-        database,
-        `Elearning/Utilisateurs/${auth.currentUser.uid}`
-      );
+      const userRef = ref(database, `elearning/users/${auth.currentUser.uid}`);
 
       // Préparer les données à mettre à jour
       const userData = {
-        prenom: formData.prenom,
-        nom: formData.nom,
+        // Champs de base
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         email: formData.email,
+        // Ne pas permettre la modification du rôle par l'utilisateur
+        // role: formData.role,
+        // Champs de contact
+        phone: formData.phone || "",
+        country: formData.country || "",
+        // Champs spécifiques aux formateurs
+        expertise: formData.expertise || "",
+        // Mettre à jour la date de modification
+        updatedAt: new Date().toISOString(),
       };
-
-      // Ajouter les champs supplémentaires s'ils sont remplis
-      if (formData.telephone) userData.telephone = formData.telephone;
-      if (formData.adresse) userData.adresse = formData.adresse;
-      if (formData.ville) userData.ville = formData.ville;
-      if (formData.codePostal) userData.codePostal = formData.codePostal;
-      if (formData.pays) userData.pays = formData.pays;
 
       // Mettre à jour les données utilisateur
       await update(userRef, userData);
 
-      // Mettre à jour l'avatar dans les informations spécifiques au rôle
+      // Mettre à jour l'avatar directement dans le profil utilisateur
       // Ne mettre à jour l'avatar que s'il est défini
       if (formData.avatar) {
-        if (userInfo.userType === "apprenant") {
-          const apprenantRef = ref(
-            database,
-            `Elearning/Apprenants/${auth.currentUser.uid}`
-          );
-          await update(apprenantRef, {
-            avatar: formData.avatar,
-          });
-        } else if (userInfo.userType === "formateur") {
-          const formateurRef = ref(
-            database,
-            `Elearning/Formateurs/${auth.currentUser.uid}`
-          );
-          await update(formateurRef, {
-            avatar: formData.avatar,
-          });
-        } else if (userInfo.userType === "administrateur") {
-          const adminRef = ref(
-            database,
-            `Elearning/Administrateurs/${auth.currentUser.uid}`
-          );
-          await update(adminRef, {
-            avatar: formData.avatar,
-          });
-        }
+        // Ajouter l'avatar aux données utilisateur
+        userData.avatar = formData.avatar;
+
+        // Mettre à jour les données utilisateur avec l'avatar
+        await update(userRef, { avatar: formData.avatar });
+
+        console.log("Avatar updated successfully");
       } else {
         console.log("Avatar field is empty, using generated avatar instead");
       }
@@ -276,7 +278,9 @@ const EditProfile = () => {
                     }
                     alt={
                       userInfo
-                        ? `${userInfo.prenom || ""} ${userInfo.nom || ""}`
+                        ? `${userInfo.firstName || userInfo.prenom || ""} ${
+                            userInfo.lastName || userInfo.nom || ""
+                          }`
                         : "User avatar"
                     }
                     className="w-full h-full object-cover"
@@ -312,8 +316,8 @@ const EditProfile = () => {
                   </label>
                   <input
                     type="text"
-                    name="prenom"
-                    value={formData.prenom}
+                    name="firstName"
+                    value={formData.firstName}
                     onChange={handleChange}
                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     placeholder="Prénom"
@@ -326,8 +330,8 @@ const EditProfile = () => {
                   </label>
                   <input
                     type="text"
-                    name="nom"
-                    value={formData.nom}
+                    name="lastName"
+                    value={formData.lastName}
                     onChange={handleChange}
                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                     placeholder="Nom"
@@ -338,130 +342,91 @@ const EditProfile = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Téléphone
+                    Email
                   </label>
                   <input
-                    type="tel"
-                    name="telephone"
-                    value={formData.telephone}
+                    type="email"
+                    name="email"
+                    value={formData.email}
                     onChange={handleChange}
                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Téléphone"
+                    placeholder="Email"
                   />
                 </div>
 
                 <div>
                   <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Pays
+                    Rôle
                   </label>
-                  <input
-                    type="text"
-                    name="pays"
-                    value={formData.pays}
-                    onChange={handleChange}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Pays"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Téléphone
-                  </label>
-                  <input
-                    type="tel"
-                    name="telephone"
-                    value={formData.telephone}
-                    onChange={handleChange}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Téléphone"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Pays
-                  </label>
-                  <input
-                    type="text"
-                    name="pays"
-                    value={formData.pays}
-                    onChange={handleChange}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Pays"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Adresse
-                </label>
-                <input
-                  type="text"
-                  name="adresse"
-                  value={formData.adresse}
-                  onChange={handleChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  placeholder="Adresse"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Ville
-                  </label>
-                  <input
-                    type="text"
-                    name="ville"
-                    value={formData.ville}
-                    onChange={handleChange}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Ville"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Code Postal
-                  </label>
-                  <input
-                    type="text"
-                    name="codePostal"
-                    value={formData.codePostal}
-                    onChange={handleChange}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    placeholder="Code Postal"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  placeholder="Email"
-                  disabled={
-                    auth.currentUser?.providerData[0]?.providerId !== "password"
-                  }
-                />
-                {auth.currentUser?.providerData[0]?.providerId !==
-                  "password" && (
+                  <div className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100">
+                    {formData.role === "student"
+                      ? "Apprenant"
+                      : formData.role === "instructor"
+                      ? "Formateur"
+                      : formData.role === "admin"
+                      ? "Administrateur"
+                      : formData.role || "Utilisateur"}
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    L'email ne peut pas être modifié car vous vous êtes connecté
-                    avec un fournisseur externe
+                    Le rôle ne peut pas être modifié
                   </p>
-                )}
+                </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Téléphone
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Téléphone"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Pays
+                  </label>
+                  <input
+                    type="text"
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Pays"
+                  />
+                </div>
+              </div>
+
+              {/* Champ biographie supprimé */}
+
+              {formData.role === "instructor" ||
+              formData.role === "formateur" ? (
+                <div className="grid grid-cols-1 gap-6">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Expertise
+                    </label>
+                    <input
+                      type="text"
+                      name="expertise"
+                      value={formData.expertise}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="Vos domaines d'expertise"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Champs adresse, ville et code postal supprimés */}
+
+              {/* Champ email dupliqué supprimé */}
 
               <div className="flex justify-end space-x-4">
                 <Link

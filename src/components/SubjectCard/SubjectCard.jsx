@@ -1,30 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { FaComputer, FaBook } from "react-icons/fa6";
-import {
-  fetchFormationsFromDatabase,
-  testFirebasePaths,
-} from "../../utils/firebaseUtils";
+import { fetchSpecialitesFromDatabase } from "../../utils/firebaseUtils";
 import { Link } from "react-router-dom";
 
 const SubjectCard = () => {
-  const [formations, setFormations] = useState([]);
+  const [specialites, setSpecialites] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Tester les chemins Firebase disponibles
-        console.log("Testing Firebase paths...");
-        await testFirebasePaths();
-
-        // Récupérer les formations
-        console.log("Fetching formations...");
-        const formationsData = await fetchFormationsFromDatabase();
-        console.log("Formations data:", formationsData);
-        setFormations(formationsData);
+        // Récupérer les spécialités
+        console.log("Fetching specialites...");
+        const specialitesData = await fetchSpecialitesFromDatabase();
+        console.log("Specialites data:", specialitesData);
+        setSpecialites(specialitesData);
       } catch (error) {
-        console.error("Error fetching formations:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
@@ -57,34 +50,45 @@ const SubjectCard = () => {
           Trouvez la formation qui vous convient
         </p>
       </div>
-      {/* cards section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-        {formations.map((formation, index) => (
-          <Link to={`/course/${formation.id}`} key={formation.id}>
-            <motion.div
-              initial={{ opacity: 0, x: -200 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{
-                type: "spring",
-                stiffness: 100,
-                delay: index * 0.1,
-              }}
-              className="border rounded-lg border-secondary/20 p-4 flex justify-start items-center gap-4 hover:!scale-105 hover:!shadow-xl duration-200 cursor-pointer"
+
+      {loading ? (
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        </div>
+      ) : specialites.length === 0 ? (
+        <div className="text-center py-10">
+          <p className="text-gray-500">
+            Aucune spécialité disponible pour le moment.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {specialites.map((specialite) => (
+            <Link
+              key={specialite.id}
+              to={`/specialite/${specialite.id}`}
+              className="block"
             >
-              <div
-                style={{
-                  color: formation.color || "#0063ff",
-                  backgroundColor: `${formation.color || "#0063ff"}20`,
-                }}
-                className="w-10 h-10 rounded-md flex justify-center items-center"
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"
               >
-                {getIcon(formation.icon)}
-              </div>
-              <p>{formation.titre}</p>
-            </motion.div>
-          </Link>
-        ))}
-      </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 mb-4">
+                    {getIcon(specialite.icon || "FaBook")}
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    {specialite.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    {specialite.description || "Description non disponible"}
+                  </p>
+                </div>
+              </motion.div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

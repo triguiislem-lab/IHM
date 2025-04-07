@@ -341,13 +341,17 @@ const MyCourses = () => {
                             <img
                               src={
                                 course.image ||
-                                "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80"
+                                "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80"
                               }
                               alt={course.title || course.titre}
                               className="w-full h-48 object-cover"
                               onError={(e) => {
+                                console.log(
+                                  "MyCourses image failed to load:",
+                                  e.target.src
+                                );
                                 e.target.src =
-                                  "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=700&q=80";
+                                  "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
                               }}
                             />
                             <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
