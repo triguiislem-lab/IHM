@@ -21,6 +21,7 @@ import DatabaseMigration from "./pages/Admin/DatabaseMigration";
 import SpecialitesManager from "./pages/Admin/SpecialitesManager";
 import CourseForm from "./pages/Admin/CourseForm";
 import InstructorCourses from "./pages/Instructor/MyCourses";
+import InstructorCourseManagement from "./pages/Instructor/InstructorCourseManagement";
 import MessagesPage from "./pages/Messages/MessagesPage";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -222,6 +223,21 @@ const App = () => {
                 ]}
               >
                 <InstructorCourses />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/course/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "administrateur",
+                  "instructor",
+                  "formateur",
+                ]}
+              >
+                <InstructorCourseManagement />
               </ProtectedRoute>
             }
           />

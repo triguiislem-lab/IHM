@@ -1433,7 +1433,11 @@ const CourseDetails = () => {
                   <div className="bg-white p-6 rounded-xl shadow-lg sticky top-4">
                     <div className="mb-6">
                       <h3 className="text-3xl font-bold mb-4">
-                        ${(course.price || 49.99).toFixed(2)}
+                        $
+                        {(typeof course.price === "number"
+                          ? course.price
+                          : parseFloat(course.price) || 49.99
+                        ).toFixed(2)}
                       </h3>
 
                       {isEnrolled ? (

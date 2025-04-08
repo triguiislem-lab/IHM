@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
-import { getDatabase, ref, get, update } from "firebase/database";
+import { database } from "../../../firebaseConfig";
+import { ref, get } from "firebase/database";
 import {
   MdInbox,
   MdOutbox,
@@ -8,7 +9,20 @@ import {
   MdMarkEmailRead,
   MdMarkEmailUnread,
   MdDelete,
+  MdSend,
+  MdPerson,
+  MdPeople,
+  MdAdminPanelSettings,
+  MdSchool,
 } from "react-icons/md";
+import {
+  getReceivedMessages,
+  getSentMessages,
+  markMessageAsRead,
+  deleteMessage,
+  getAvailableRecipients,
+  sendMessage,
+} from "../../utils/messageUtils";
 
 const MessagesPage = () => {
   const [messages, setMessages] = useState([]);
@@ -18,9 +32,19 @@ const MessagesPage = () => {
   const [activeTab, setActiveTab] = useState("inbox");
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [showNewMessage, setShowNewMessage] = useState(false);
+  const [recipients, setRecipients] = useState({
+    admins: [],
+    instructors: [],
+    students: [],
+  });
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [subject, setSubject] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [sending, setSending] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const auth = getAuth();
-  const database = getDatabase();
 
   // Vérifier le rôle de l'utilisateur
   useEffect(() => {
@@ -28,6 +52,20 @@ const MessagesPage = () => {
       if (!auth.currentUser) return;
 
       try {
+        // Vérifier le rôle dans la nouvelle structure
+        const userRef = ref(
+          database,
+          `elearning/users/${auth.currentUser.uid}`
+        );
+        const userSnapshot = await get(userRef);
+
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.val();
+          setUserRole(userData.role || "student");
+          return;
+        }
+
+        // Si non trouvé, vérifier dans l'ancienne structure
         // Vérifier si l'utilisateur est un administrateur
         const adminRef = ref(
           database,
@@ -53,14 +91,14 @@ const MessagesPage = () => {
         }
 
         // Vérifier dans la table Utilisateurs
-        const userRef = ref(
+        const oldUserRef = ref(
           database,
           `Elearning/Utilisateurs/${auth.currentUser.uid}`
         );
-        const userSnapshot = await get(userRef);
+        const oldUserSnapshot = await get(oldUserRef);
 
-        if (userSnapshot.exists() && userSnapshot.val().userType) {
-          setUserRole(userSnapshot.val().userType);
+        if (oldUserSnapshot.exists() && oldUserSnapshot.val().userType) {
+          setUserRole(oldUserSnapshot.val().userType);
         } else {
           setUserRole("student");
         }
@@ -82,73 +120,13 @@ const MessagesPage = () => {
       setError("");
 
       try {
-        const messagesRef = ref(database, "Elearning/Messages");
-        const snapshot = await get(messagesRef);
+        // Récupérer les messages reçus
+        const receivedMessages = await getReceivedMessages();
+        setMessages(receivedMessages);
 
-        if (snapshot.exists()) {
-          const messagesData = snapshot.val();
-          const messagesArray = Object.entries(messagesData).map(
-            ([id, message]) => ({
-              id,
-              ...message,
-              date: new Date(message.date),
-            })
-          );
-
-          // Filtrer les messages selon le rôle de l'utilisateur
-          let receivedMessages = [];
-          let userSentMessages = [];
-
-          if (userRole === "admin" || userRole === "administrateur") {
-            // Les administrateurs voient tous les messages adressés aux administrateurs
-            receivedMessages = messagesArray.filter(
-              (message) =>
-                message.recipientType === "admin" ||
-                message.recipientId === auth.currentUser.uid
-            );
-            userSentMessages = messagesArray.filter(
-              (message) => message.senderId === auth.currentUser.uid
-            );
-          } else if (userRole === "instructor" || userRole === "formateur") {
-            // Les formateurs voient les messages concernant leurs cours
-            receivedMessages = messagesArray.filter((message) => {
-              // Messages adressés directement au formateur
-              if (message.recipientId === auth.currentUser.uid) {
-                return true;
-              }
-
-              // Vérifier si le message concerne un cours du formateur
-              if (message.courseId) {
-                // Vérifier si le formateur est responsable de ce cours
-                const isCourseInstructor =
-                  message.instructorId === auth.currentUser.uid;
-                return isCourseInstructor;
-              }
-
-              return false;
-            });
-
-            userSentMessages = messagesArray.filter(
-              (message) => message.senderId === auth.currentUser.uid
-            );
-          } else {
-            // Les étudiants voient uniquement leurs conversations
-            receivedMessages = messagesArray.filter(
-              (message) => message.recipientId === auth.currentUser.uid
-            );
-
-            userSentMessages = messagesArray.filter(
-              (message) => message.senderId === auth.currentUser.uid
-            );
-          }
-
-          // Trier par date (plus récent d'abord)
-          receivedMessages.sort((a, b) => b.date - a.date);
-          userSentMessages.sort((a, b) => b.date - a.date);
-
-          setMessages(receivedMessages);
-          setSentMessages(userSentMessages);
-        }
+        // Récupérer les messages envoyés
+        const sentMessages = await getSentMessages();
+        setSentMessages(sentMessages);
       } catch (error) {
         console.error("Error fetching messages:", error);
         setError("Erreur lors de la récupération des messages");
@@ -158,13 +136,28 @@ const MessagesPage = () => {
     };
 
     fetchMessages();
-  }, [auth.currentUser, database, userRole]);
+  }, [auth.currentUser, userRole]);
+
+  // Récupérer les destinataires disponibles
+  useEffect(() => {
+    const fetchRecipients = async () => {
+      if (!auth.currentUser || !userRole) return;
+
+      try {
+        const availableRecipients = await getAvailableRecipients();
+        setRecipients(availableRecipients);
+      } catch (error) {
+        console.error("Error fetching recipients:", error);
+      }
+    };
+
+    fetchRecipients();
+  }, [auth.currentUser, userRole]);
 
   // Marquer un message comme lu
   const markAsRead = async (messageId, isRead = true) => {
     try {
-      const messageRef = ref(database, `Elearning/Messages/${messageId}`);
-      await update(messageRef, { read: isRead });
+      await markMessageAsRead(messageId, isRead);
 
       // Mettre à jour l'état local
       setMessages(
@@ -183,14 +176,13 @@ const MessagesPage = () => {
   };
 
   // Supprimer un message
-  const deleteMessage = async (messageId) => {
+  const handleDeleteMessage = async (messageId) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce message ?")) {
       return;
     }
 
     try {
-      const messageRef = ref(database, `Elearning/Messages/${messageId}`);
-      await update(messageRef, { deleted: true });
+      await deleteMessage(messageId);
 
       // Mettre à jour l'état local
       setMessages(messages.filter((message) => message.id !== messageId));
@@ -204,6 +196,57 @@ const MessagesPage = () => {
     } catch (error) {
       console.error("Error deleting message:", error);
       setError("Erreur lors de la suppression du message");
+    }
+  };
+
+  // Envoyer un nouveau message
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+
+    if (!selectedRecipient) {
+      setError("Veuillez sélectionner un destinataire");
+      return;
+    }
+
+    if (!subject.trim()) {
+      setError("Veuillez saisir un sujet");
+      return;
+    }
+
+    if (!messageContent.trim()) {
+      setError("Veuillez saisir un message");
+      return;
+    }
+
+    setSending(true);
+    setError("");
+
+    try {
+      await sendMessage(
+        selectedRecipient.id,
+        selectedRecipient.role,
+        subject,
+        messageContent
+      );
+
+      // Réinitialiser le formulaire
+      setSelectedRecipient(null);
+      setSubject("");
+      setMessageContent("");
+      setShowNewMessage(false);
+      setSuccess("Message envoyé avec succès");
+
+      // Rafraîchir la liste des messages envoyés
+      const sentMessages = await getSentMessages();
+      setSentMessages(sentMessages);
+
+      // Effacer le message de succès après 3 secondes
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setError(`Erreur lors de l'envoi du message: ${error.message}`);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -298,6 +341,17 @@ const MessagesPage = () => {
       <p className="text-gray-600 mb-6">{roleContent.description}</p>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="flex justify-between items-center p-4 border-b">
+          <div className="flex rounded-md overflow-hidden flex-1">
+            <button
+              onClick={() => setShowNewMessage(true)}
+              className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
+            >
+              <MdSend />
+              Nouveau message
+            </button>
+          </div>
+        </div>
         <div className="flex border-b">
           <button
             className={`flex-1 py-3 px-4 flex items-center justify-center gap-2 ${
@@ -488,7 +542,7 @@ const MessagesPage = () => {
                       </>
                     )}
                     <button
-                      onClick={() => deleteMessage(selectedMessage.id)}
+                      onClick={() => handleDeleteMessage(selectedMessage.id)}
                       className="p-2 rounded-full hover:bg-gray-200 transition-colors duration-300"
                       title="Supprimer"
                     >
@@ -519,6 +573,126 @@ const MessagesPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal pour envoyer un nouveau message */}
+      {showNewMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">Nouveau message</h3>
+
+            <form onSubmit={handleSendMessage}>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Destinataire
+                </label>
+                <select
+                  value={
+                    selectedRecipient ? JSON.stringify(selectedRecipient) : ""
+                  }
+                  onChange={(e) =>
+                    setSelectedRecipient(
+                      e.target.value ? JSON.parse(e.target.value) : null
+                    )
+                  }
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                >
+                  <option value="">Sélectionnez un destinataire</option>
+
+                  {recipients.admins.length > 0 && (
+                    <optgroup label="Administrateurs">
+                      {recipients.admins.map((admin) => (
+                        <option key={admin.id} value={JSON.stringify(admin)}>
+                          {admin.displayName || admin.email}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {recipients.instructors.length > 0 && (
+                    <optgroup label="Formateurs">
+                      {recipients.instructors.map((instructor) => (
+                        <option
+                          key={instructor.id}
+                          value={JSON.stringify(instructor)}
+                        >
+                          {instructor.displayName || instructor.email}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {recipients.students.length > 0 && (
+                    <optgroup label="Étudiants">
+                      {recipients.students.map((student) => (
+                        <option
+                          key={student.id}
+                          value={JSON.stringify(student)}
+                        >
+                          {student.displayName || student.email}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Sujet
+                </label>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  placeholder="Sujet du message"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Message
+                </label>
+                <textarea
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  placeholder="Votre message"
+                  rows="5"
+                  required
+                />
+              </div>
+
+              {error && <div className="mb-4 text-red-600">{error}</div>}
+              {success && <div className="mb-4 text-green-600">{success}</div>}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowNewMessage(false)}
+                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
+                  disabled={sending}
+                >
+                  {sending ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <MdSend />
+                  )}
+                  Envoyer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

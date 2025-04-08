@@ -1,14 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { getAuth } from 'firebase/auth';
-import { getDatabase, ref, push, get } from 'firebase/database';
-import { MdSend, MdPerson, MdEmail, MdSubject, MdMessage, MdCheck, MdSchool } from 'react-icons/md';
+import React, { useState, useEffect } from "react";
+import { getAuth } from "firebase/auth";
+import { getDatabase, ref, get } from "firebase/database";
+import {
+  MdSend,
+  MdPerson,
+  MdEmail,
+  MdSubject,
+  MdMessage,
+  MdCheck,
+  MdSchool,
+} from "react-icons/md";
+import { sendMessage } from "../../utils/messageUtils";
 
 const StudentContactForm = ({ courseId, courseName }) => {
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [instructor, setInstructor] = useState(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
 
@@ -21,67 +30,127 @@ const StudentContactForm = ({ courseId, courseName }) => {
       if (!auth.currentUser || !courseId) return;
 
       try {
-        // Vérifier si l'étudiant est inscrit au cours
-        const enrollmentRef = ref(database, `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`);
+        // Vérifier si l'étudiant est inscrit au cours (nouvelle structure)
+        const enrollmentRef = ref(
+          database,
+          `elearning/enrollments/${auth.currentUser.uid}/${courseId}`
+        );
         const enrollmentSnapshot = await get(enrollmentRef);
-        
-        setIsEnrolled(enrollmentSnapshot.exists());
-        
+
+        // Si pas trouvé, vérifier l'ancienne structure
         if (!enrollmentSnapshot.exists()) {
-          setError('Vous devez être inscrit à ce cours pour contacter le formateur.');
-          return;
-        }
-        
-        // Récupérer les informations du cours pour trouver le formateur
-        const courseRef = ref(database, `Elearning/Cours/${courseId}`);
-        const courseSnapshot = await get(courseRef);
-        
-        if (courseSnapshot.exists()) {
-          const courseData = courseSnapshot.val();
-          const instructorId = courseData.formateur || courseData.instructorId;
-          
-          if (instructorId) {
-            // Récupérer les informations du formateur
-            const instructorRef = ref(database, `Elearning/Formateurs/${instructorId}`);
-            const instructorSnapshot = await get(instructorRef);
-            
-            if (instructorSnapshot.exists()) {
-              const instructorData = instructorSnapshot.val();
-              
-              // Récupérer les informations utilisateur supplémentaires si nécessaire
-              const userRef = ref(database, `Elearning/Utilisateurs/${instructorId}`);
-              const userSnapshot = await get(userRef);
-              
-              let userData = {};
-              if (userSnapshot.exists()) {
-                userData = userSnapshot.val();
-              }
-              
-              // Fusionner les données
-              const mergedData = {
-                ...instructorData,
-                id: instructorId,
-                prenom: userData.prenom || instructorData.prenom || '',
-                nom: userData.nom || instructorData.nom || '',
-                email: userData.email || instructorData.email || ''
-              };
-              
-              setInstructor(mergedData);
-              
-              // Préremplir le sujet avec le nom du cours
-              setSubject(`Question sur le cours: ${courseName}`);
-            } else {
-              setError('Informations du formateur non disponibles.');
-            }
-          } else {
-            setError('Ce cours n\'a pas de formateur assigné.');
+          const oldEnrollmentRef = ref(
+            database,
+            `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`
+          );
+          const oldEnrollmentSnapshot = await get(oldEnrollmentRef);
+          setIsEnrolled(oldEnrollmentSnapshot.exists());
+
+          if (!oldEnrollmentSnapshot.exists()) {
+            setError(
+              "Vous devez être inscrit à ce cours pour contacter le formateur."
+            );
+            return;
           }
         } else {
-          setError('Informations du cours non disponibles.');
+          setIsEnrolled(true);
+        }
+
+        // Récupérer les informations du cours pour trouver le formateur (nouvelle structure)
+        const courseRef = ref(database, `elearning/courses/${courseId}`);
+        const courseSnapshot = await get(courseRef);
+
+        let courseData;
+        let instructorId;
+
+        if (courseSnapshot.exists()) {
+          courseData = courseSnapshot.val();
+          instructorId = courseData.instructorId;
+        } else {
+          // Vérifier l'ancienne structure
+          const oldCourseRef = ref(database, `Elearning/Cours/${courseId}`);
+          const oldCourseSnapshot = await get(oldCourseRef);
+
+          if (oldCourseSnapshot.exists()) {
+            courseData = oldCourseSnapshot.val();
+            instructorId = courseData.formateur || courseData.instructorId;
+          } else {
+            setError("Informations du cours non disponibles.");
+            return;
+          }
+        }
+
+        if (!instructorId) {
+          setError("Ce cours n'a pas de formateur assigné.");
+          return;
+        }
+
+        // Récupérer les informations du formateur (nouvelle structure)
+        const instructorRef = ref(database, `elearning/users/${instructorId}`);
+        const instructorSnapshot = await get(instructorRef);
+
+        if (instructorSnapshot.exists()) {
+          const instructorData = instructorSnapshot.val();
+
+          // Fusionner les données
+          const mergedData = {
+            ...instructorData,
+            id: instructorId,
+            role: "instructor",
+            prenom: instructorData.firstName || "",
+            nom: instructorData.lastName || "",
+            email: instructorData.email || "",
+          };
+
+          setInstructor(mergedData);
+
+          // Préremplir le sujet avec le nom du cours
+          setSubject(`Question sur le cours: ${courseName}`);
+        } else {
+          // Vérifier l'ancienne structure
+          const oldInstructorRef = ref(
+            database,
+            `Elearning/Formateurs/${instructorId}`
+          );
+          const oldInstructorSnapshot = await get(oldInstructorRef);
+
+          if (oldInstructorSnapshot.exists()) {
+            const instructorData = oldInstructorSnapshot.val();
+
+            // Récupérer les informations utilisateur supplémentaires si nécessaire
+            const userRef = ref(
+              database,
+              `Elearning/Utilisateurs/${instructorId}`
+            );
+            const userSnapshot = await get(userRef);
+
+            let userData = {};
+            if (userSnapshot.exists()) {
+              userData = userSnapshot.val();
+            }
+
+            // Fusionner les données
+            const mergedData = {
+              ...instructorData,
+              id: instructorId,
+              role: "instructor",
+              prenom: userData.prenom || instructorData.prenom || "",
+              nom: userData.nom || instructorData.nom || "",
+              email: userData.email || instructorData.email || "",
+            };
+
+            setInstructor(mergedData);
+
+            // Préremplir le sujet avec le nom du cours
+            setSubject(`Question sur le cours: ${courseName}`);
+          } else {
+            setError("Informations du formateur non disponibles.");
+            return;
+          }
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
-        setError('Erreur lors de la récupération des données.');
+        console.error("Error fetching data:", error);
+        setError("Erreur lors de la récupération des données.");
       }
     };
 
@@ -90,66 +159,58 @@ const StudentContactForm = ({ courseId, courseName }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!auth.currentUser) {
-      setError('Vous devez être connecté pour envoyer un message');
+      setError("Vous devez être connecté pour envoyer un message");
       return;
     }
 
     if (!isEnrolled) {
-      setError('Vous devez être inscrit à ce cours pour contacter le formateur');
+      setError(
+        "Vous devez être inscrit à ce cours pour contacter le formateur"
+      );
       return;
     }
 
     if (!instructor) {
-      setError('Informations du formateur non disponibles');
+      setError("Informations du formateur non disponibles");
       return;
     }
 
     if (!subject.trim()) {
-      setError('Veuillez saisir un sujet');
+      setError("Veuillez saisir un sujet");
       return;
     }
 
     if (!message.trim()) {
-      setError('Veuillez saisir un message');
+      setError("Veuillez saisir un message");
       return;
     }
 
     setSubmitting(true);
-    setError('');
-    
+    setError("");
+
     try {
-      const messageData = {
-        senderId: auth.currentUser.uid,
-        senderName: auth.currentUser.displayName || 'Étudiant',
-        senderEmail: auth.currentUser.email,
-        recipientId: instructor.id,
-        recipientType: 'instructor',
-        recipientName: `${instructor.prenom} ${instructor.nom}`.trim() || 'Formateur',
-        instructorId: instructor.id,
+      // Utiliser la nouvelle fonction sendMessage
+      await sendMessage(
+        instructor.id,
+        "instructor",
         subject,
         message,
         courseId,
-        courseName,
-        date: new Date().toISOString(),
-        read: false
-      };
-
-      // Enregistrer le message dans Firebase
-      const messagesRef = ref(database, 'Elearning/Messages');
-      await push(messagesRef, messageData);
+        courseName
+      );
 
       setSuccess(true);
-      setSubject('');
-      setMessage('');
-      
+      setSubject("");
+      setMessage("");
+
       setTimeout(() => {
         setSuccess(false);
       }, 5000);
     } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Erreur lors de l\'envoi du message');
+      console.error("Error sending message:", error);
+      setError("Erreur lors de l'envoi du message");
     } finally {
       setSubmitting(false);
     }
@@ -177,26 +238,33 @@ const StudentContactForm = ({ courseId, courseName }) => {
         <MdSchool className="mr-2 text-secondary" />
         Contacter le formateur
       </h2>
-      
+
       {instructor && (
         <div className="mb-4 p-4 bg-gray-50 rounded-md">
           <div className="flex items-center">
             <img
-              src={instructor.avatar || 'https://via.placeholder.com/40'}
+              src={instructor.avatar || "https://via.placeholder.com/40"}
               alt={`${instructor.prenom} ${instructor.nom}`}
               className="w-10 h-10 rounded-full mr-3"
             />
             <div>
-              <p className="font-medium">{`${instructor.prenom} ${instructor.nom}`.trim() || 'Formateur'}</p>
-              <p className="text-sm text-gray-600">{instructor.specialite || 'Formateur du cours'}</p>
+              <p className="font-medium">
+                {`${instructor.prenom} ${instructor.nom}`.trim() || "Formateur"}
+              </p>
+              <p className="text-sm text-gray-600">
+                {instructor.specialite || "Formateur du cours"}
+              </p>
             </div>
           </div>
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          <label htmlFor="subject" className="flex items-center text-gray-700 mb-2">
+          <label
+            htmlFor="subject"
+            className="flex items-center text-gray-700 mb-2"
+          >
             <MdSubject className="mr-2" />
             Sujet
           </label>
@@ -210,9 +278,12 @@ const StudentContactForm = ({ courseId, courseName }) => {
             required
           />
         </div>
-        
+
         <div className="mb-4">
-          <label htmlFor="message" className="flex items-center text-gray-700 mb-2">
+          <label
+            htmlFor="message"
+            className="flex items-center text-gray-700 mb-2"
+          >
             <MdMessage className="mr-2" />
             Message
           </label>
@@ -226,32 +297,35 @@ const StudentContactForm = ({ courseId, courseName }) => {
             required
           ></textarea>
         </div>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md">
             {error}
           </div>
         )}
-        
+
         {success && (
           <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-md flex items-center">
             <MdCheck className="mr-2" />
-            Votre message a été envoyé avec succès ! Le formateur vous répondra prochainement.
+            Votre message a été envoyé avec succès ! Le formateur vous répondra
+            prochainement.
           </div>
         )}
-        
+
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
             <div className="flex items-center mb-1">
               <MdPerson className="mr-1" />
-              <span>De: {auth.currentUser.displayName || auth.currentUser.email}</span>
+              <span>
+                De: {auth.currentUser.displayName || auth.currentUser.email}
+              </span>
             </div>
             <div className="flex items-center">
               <MdEmail className="mr-1" />
               <span>Cours: {courseName}</span>
             </div>
           </div>
-          
+
           <button
             type="submit"
             disabled={submitting || !instructor}

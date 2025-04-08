@@ -1335,7 +1335,7 @@ export const addModuleToCourse = async (courseId, moduleData) => {
 		console.log(`Adding module to course ${courseId}`);
 
 		// Vérifier si le cours existe
-		const courseRef = ref(database, `Elearning/Cours/${courseId}`);
+		const courseRef = ref(database, `elearning/courses/${courseId}`);
 		const courseSnapshot = await get(courseRef);
 
 		if (!courseSnapshot.exists()) {

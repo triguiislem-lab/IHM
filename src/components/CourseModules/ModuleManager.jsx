@@ -13,8 +13,6 @@ import {
   addModuleToCourse,
   addEvaluationToModule,
   createTestModulesForCourse,
-  checkUserEnrollment,
-  syncEnrollmentStatus,
 } from "../../utils/firebaseUtils";
 
 const ModuleManager = ({ course, onModulesUpdated }) => {

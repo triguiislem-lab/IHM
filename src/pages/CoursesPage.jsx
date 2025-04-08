@@ -244,7 +244,7 @@ const CoursesPage = () => {
 
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-2xl font-bold text-secondary">
-                    ${(course.price || 29.99).toFixed(2)}
+                    ${(parseFloat(course.price) || 29.99).toFixed(2)}
                   </span>
                 </div>
 

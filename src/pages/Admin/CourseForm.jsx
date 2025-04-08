@@ -10,6 +10,7 @@ import {
 import { database } from "../../../firebaseConfig";
 import { ref, set } from "firebase/database";
 import { getAuth } from "firebase/auth";
+import ModuleManagerCreation from "../../components/CourseModules/ModuleManagerCreation";
 // Fonction pour générer un ID unique sans dépendre de la bibliothèque uuid
 const generateUniqueId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -40,7 +41,14 @@ const CourseForm = () => {
     specialiteId: "",
     disciplineId: "",
     instructorId: "",
+    role: "",
   });
+
+  // État pour les modules du cours
+  const [courseModules, setCourseModules] = useState([]);
+
+  // État pour suivre l'onglet actif
+  const [activeTab, setActiveTab] = useState("info"); // "info" ou "modules"
 
   useEffect(() => {
     const loadData = async () => {
@@ -115,6 +123,7 @@ const CourseForm = () => {
               specialiteId: course.specialiteId || "",
               disciplineId: course.disciplineId || "",
               instructorId: course.instructorId || auth.currentUser?.uid || "",
+              role: userInfoData?.role || "instructor",
             });
 
             // Filtrer les disciplines en fonction de la spécialité sélectionnée
@@ -124,6 +133,32 @@ const CourseForm = () => {
               );
               setFilteredDisciplines(filtered);
             }
+
+            // Charger les modules du cours s'ils existent
+            if (course.modules) {
+              // Convertir les modules de format objet à tableau
+              const modulesArray = Object.entries(course.modules).map(
+                ([moduleId, moduleData]) => {
+                  // Convertir les évaluations de format objet à tableau si elles existent
+                  let evaluations = {};
+                  if (moduleData.evaluations) {
+                    evaluations = moduleData.evaluations;
+                  }
+
+                  return {
+                    ...moduleData,
+                    id: moduleId,
+                    evaluations: evaluations,
+                  };
+                }
+              );
+
+              // Trier les modules par ordre
+              const sortedModules = modulesArray.sort(
+                (a, b) => (a.order || 0) - (b.order || 0)
+              );
+              setCourseModules(sortedModules);
+            }
           } else {
             setError("Cours non trouvé");
           }
@@ -132,6 +167,7 @@ const CourseForm = () => {
           setCourseData((prev) => ({
             ...prev,
             instructorId: auth.currentUser?.uid || "",
+            role: userInfoData?.role || "instructor",
           }));
         }
       } catch (error) {
@@ -220,11 +256,100 @@ const CourseForm = () => {
       const courseId = isEditMode ? id : generateUniqueId();
       const timestamp = new Date().toISOString();
 
+      // Préparer les modules si présents
+      let modulesData = {};
+      if (courseModules.length > 0) {
+        courseModules.forEach((module) => {
+          // Créer un ID permanent pour le module
+          const moduleId = module.id.startsWith("temp_")
+            ? `m${Date.now()}_${Math.random().toString(36).substring(2)}`
+            : module.id;
+
+          // Préparer les évaluations si présentes
+          let evaluationsData = {};
+          if (
+            module.evaluations &&
+            Object.keys(module.evaluations).length > 0
+          ) {
+            Object.entries(module.evaluations).forEach(
+              ([tempEvalId, evaluation]) => {
+                // Créer un ID permanent pour l'évaluation
+                const evalId = tempEvalId.startsWith("temp_")
+                  ? `e${Date.now()}_${Math.random().toString(36).substring(2)}`
+                  : tempEvalId;
+
+                // S'assurer qu'aucune valeur n'est undefined
+                const cleanEvaluation = {};
+                Object.entries(evaluation).forEach(([key, value]) => {
+                  cleanEvaluation[key] = value === undefined ? null : value;
+                });
+
+                evaluationsData[evalId] = {
+                  ...cleanEvaluation,
+                  id: evalId,
+                  moduleId: moduleId,
+                  date: cleanEvaluation.date || new Date().toISOString(),
+                };
+              }
+            );
+          }
+
+          // Préparer les ressources si présentes
+          let resourcesData = [];
+          if (module.resources && module.resources.length > 0) {
+            resourcesData = module.resources.map((resource) => {
+              // S'assurer qu'aucune valeur n'est undefined
+              const cleanResource = {};
+              Object.entries(resource).forEach(([key, value]) => {
+                cleanResource[key] = value === undefined ? null : value;
+              });
+
+              return {
+                ...cleanResource,
+                id: resource.id,
+                moduleId: moduleId,
+                createdAt: resource.createdAt || new Date().toISOString(),
+              };
+            });
+          }
+
+          // Nettoyer le module de toute valeur undefined
+          const cleanModule = {};
+          Object.entries(module).forEach(([key, value]) => {
+            // Ignorer les propriétés evaluations et resources car on les traite séparément
+            if (key !== "evaluations" && key !== "resources") {
+              cleanModule[key] = value === undefined ? null : value;
+            }
+          });
+
+          // Ajouter le module avec ses évaluations et ressources
+          modulesData[moduleId] = {
+            ...cleanModule,
+            id: moduleId,
+            courseId: courseId,
+            evaluations: evaluationsData,
+            resources: resourcesData,
+            createdAt: cleanModule.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            status: cleanModule.status || "active",
+          };
+        });
+      }
+
+      // Nettoyer les données du cours de toute valeur undefined
+      const cleanCourseData = {};
+      Object.entries(courseData).forEach(([key, value]) => {
+        cleanCourseData[key] = value === undefined ? null : value;
+      });
+
       const courseToSave = {
-        ...courseData,
+        ...cleanCourseData,
         id: courseId,
         updatedAt: timestamp,
-        createdAt: isEditMode ? undefined : timestamp,
+        createdAt: isEditMode
+          ? cleanCourseData.createdAt || timestamp
+          : timestamp,
+        modules: modulesData,
       };
 
       // Sauvegarder le cours dans la base de données
@@ -273,10 +398,31 @@ const CourseForm = () => {
         isEditMode ? "Cours mis à jour avec succès" : "Cours créé avec succès"
       );
 
-      // Rediriger vers la page des cours de l'instructeur après un court délai
-      setTimeout(() => {
-        navigate(`/instructor/courses`);
-      }, 2000);
+      // Vérifier si le formulaire a été soumis depuis le bouton "Continuer vers les modules"
+      const isContinueToModules =
+        e.target.getAttribute("data-action") === "continue-to-modules";
+
+      if (isContinueToModules) {
+        // Passer à l'onglet des modules
+        setActiveTab("modules");
+      } else {
+        // Déterminer le rôle de l'utilisateur pour la redirection
+        const userRole = courseData.role || userInfo?.role || "instructor";
+
+        // Rediriger vers le tableau de bord approprié selon le rôle
+        setTimeout(() => {
+          switch (userRole) {
+            case "admin":
+              navigate(`/admin/dashboard`);
+              break;
+            case "instructor":
+              navigate(`/instructor/dashboard`);
+              break;
+            default:
+              navigate(`/instructor/courses`);
+          }
+        }, 2000);
+      }
     } catch (error) {
       console.error("Error saving course:", error);
       setError(`Erreur: ${error.message}`);
@@ -396,225 +542,315 @@ const CourseForm = () => {
         </div>
       )}
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white rounded-lg shadow-md p-6"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="max-w-4xl mx-auto p-6">
+        {loading ? (
+          <div className="flex justify-center items-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        ) : (
           <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Titre*
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={courseData.title}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Titre du cours"
-              required
-            />
-          </div>
+            {activeTab === "info" ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (
+                    courseData.title &&
+                    courseData.description &&
+                    courseData.specialiteId &&
+                    courseData.disciplineId
+                  ) {
+                    setActiveTab("modules");
+                  } else {
+                    // Afficher un message d'erreur si les champs obligatoires ne sont pas remplis
+                    setError(
+                      "Veuillez remplir tous les champs obligatoires avant de continuer"
+                    );
+                  }
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Titre*
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      value={courseData.title}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="Titre du cours"
+                      required
+                    />
+                  </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Image (URL)
-            </label>
-            <input
-              type="url"
-              name="image"
-              value={courseData.image}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="URL de l'image"
-            />
-          </div>
-        </div>
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Image (URL)
+                    </label>
+                    <input
+                      type="url"
+                      name="image"
+                      value={courseData.image}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="URL de l'image"
+                    />
+                  </div>
+                </div>
 
-        <div className="mt-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Description du cours*
-          </label>
-          <div className="mb-2">
-            <textarea
-              name="description"
-              value={courseData.description}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Décrivez votre cours en détail. Incluez les objectifs d'apprentissage, les prérequis et ce que les étudiants vont apprendre."
-              rows="6"
-              required
-            />
-          </div>
-          <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-600">
-            <p className="font-medium mb-1">
-              Conseils pour une bonne description :
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Expliquez clairement les objectifs d'apprentissage</li>
-              <li>Mentionnez les prérequis nécessaires</li>
-              <li>Décrivez à qui s'adresse ce cours</li>
-              <li>Précisez les compétences que les étudiants acquerront</li>
-            </ul>
-          </div>
-        </div>
+                <div className="mt-4">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">
+                    Description du cours*
+                  </label>
+                  <div className="mb-2">
+                    <textarea
+                      name="description"
+                      value={courseData.description}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="Décrivez votre cours en détail. Incluez les objectifs d'apprentissage, les prérequis et ce que les étudiants vont apprendre."
+                      rows="6"
+                      required
+                    />
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-600">
+                    <p className="font-medium mb-1">
+                      Conseils pour une bonne description :
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>
+                        Expliquez clairement les objectifs d'apprentissage
+                      </li>
+                      <li>Mentionnez les prérequis nécessaires</li>
+                      <li>Décrivez à qui s'adresse ce cours</li>
+                      <li>
+                        Précisez les compétences que les étudiants acquerront
+                      </li>
+                    </ul>
+                  </div>
+                </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Niveau
-            </label>
-            <select
-              name="level"
-              value={courseData.level}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            >
-              <option value="Débutant">Débutant</option>
-              <option value="Intermédiaire">Intermédiaire</option>
-              <option value="Avancé">Avancé</option>
-            </select>
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Niveau
+                    </label>
+                    <select
+                      name="level"
+                      value={courseData.level}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    >
+                      <option value="Débutant">Débutant</option>
+                      <option value="Intermédiaire">Intermédiaire</option>
+                      <option value="Avancé">Avancé</option>
+                    </select>
+                  </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Durée (heures)
-            </label>
-            <input
-              type="number"
-              name="duration"
-              value={courseData.duration}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Durée en heures"
-              min="1"
-            />
-          </div>
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Durée (heures)
+                    </label>
+                    <input
+                      type="number"
+                      name="duration"
+                      value={courseData.duration}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="Durée en heures"
+                      min="1"
+                    />
+                  </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Prix (€)
-            </label>
-            <input
-              type="number"
-              name="price"
-              value={courseData.price}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="Prix"
-              min="0"
-              step="0.01"
-            />
-          </div>
-        </div>
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Prix (€)
+                    </label>
+                    <input
+                      type="number"
+                      name="price"
+                      value={courseData.price}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      placeholder="Prix"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Spécialité*
-            </label>
-            <select
-              name="specialiteId"
-              value={courseData.specialiteId}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              required
-            >
-              <option value="">Sélectionner une spécialité</option>
-              {specialites.map((specialite) => (
-                <option key={specialite.id} value={specialite.id}>
-                  {specialite.name}
-                </option>
-              ))}
-            </select>
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Spécialité*
+                    </label>
+                    <select
+                      name="specialiteId"
+                      value={courseData.specialiteId}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      required
+                    >
+                      <option value="">Sélectionner une spécialité</option>
+                      {specialites.map((specialite) => (
+                        <option key={specialite.id} value={specialite.id}>
+                          {specialite.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Discipline*
-            </label>
-            <select
-              name="disciplineId"
-              value={courseData.disciplineId}
-              onChange={handleChange}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              disabled={!courseData.specialiteId}
-              required
-            >
-              <option value="">Sélectionner une discipline</option>
-              {filteredDisciplines.map((discipline) => (
-                <option key={discipline.id} value={discipline.id}>
-                  {discipline.name}
-                </option>
-              ))}
-            </select>
-            {!courseData.specialiteId && (
-              <p className="text-sm text-gray-500 mt-1">
-                Veuillez d'abord sélectionner une spécialité
-              </p>
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Discipline*
+                    </label>
+                    <select
+                      name="disciplineId"
+                      value={courseData.disciplineId}
+                      onChange={handleChange}
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      disabled={!courseData.specialiteId}
+                      required
+                    >
+                      <option value="">Sélectionner une discipline</option>
+                      {filteredDisciplines.map((discipline) => (
+                        <option key={discipline.id} value={discipline.id}>
+                          {discipline.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!courseData.specialiteId && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Veuillez d'abord sélectionner une spécialité
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 mt-8 pt-6">
+                  <div className="flex flex-col md:flex-row justify-between items-center">
+                    <div className="text-sm text-gray-600 mb-4 md:mb-0">
+                      <span className="text-red-500">*</span> Champs
+                      obligatoires
+                    </div>
+
+                    <div className="flex">
+                      <button
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400 transition-colors duration-300 flex items-center"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 mr-1"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Annuler
+                      </button>
+
+                      <button
+                        type="submit"
+                        className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 mr-1"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" />
+                        </svg>
+                        Continuer vers les modules
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <div>
+                <ModuleManagerCreation
+                  modules={courseModules}
+                  setModules={setCourseModules}
+                />
+                <div className="border-t border-gray-200 mt-8 pt-6">
+                  <div className="flex flex-col md:flex-row justify-between items-center">
+                    <div className="text-sm text-gray-600 mb-4 md:mb-0">
+                      {courseModules.length === 0 ? (
+                        <span className="text-amber-600">
+                          Aucun module ajouté. Vous pouvez ajouter des modules
+                          maintenant ou plus tard.
+                        </span>
+                      ) : (
+                        <span className="text-green-600">
+                          {courseModules.length} module(s) ajouté(s) au cours
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("info")}
+                        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400 transition-colors duration-300 flex items-center"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5 mr-1"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Retour aux informations
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center"
+                        disabled={saving}
+                      >
+                        {saving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                            Enregistrement...
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5 mr-1"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            {isEditMode ? "Mettre à jour" : "Créer le cours"}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-
-        <div className="border-t border-gray-200 mt-8 pt-6">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="text-sm text-gray-600 mb-4 md:mb-0">
-              <span className="text-red-500">*</span> Champs obligatoires
-            </div>
-
-            <div className="flex">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400 transition-colors duration-300 flex items-center"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 mr-1"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Annuler
-              </button>
-
-              <button
-                type="submit"
-                className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center"
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                    Enregistrement...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 mr-1"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    {isEditMode ? "Mettre à jour" : "Créer le cours"}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </form>
+        )}
+      </div>
     </div>
   );
 };

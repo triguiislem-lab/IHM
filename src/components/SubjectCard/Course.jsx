@@ -8,7 +8,10 @@ const Course = ({ course, index }) => {
   // Définir des valeurs par défaut pour les propriétés manquantes
   const rating = course.rating || 4.5;
   const totalRatings = course.totalRatings || 10;
-  const price = course.price || 29.99;
+  const price =
+    typeof course.price === "number"
+      ? course.price
+      : parseFloat(course.price) || 29.99;
   const lessons = course.lessons || 8;
   const students = course.students || 20;
   const level = course.level || "Intermédiaire";
