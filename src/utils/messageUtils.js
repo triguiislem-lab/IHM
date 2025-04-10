@@ -1,67 +1,68 @@
 import { getDatabase } from 'firebase/database';
-import { ref, push, get, update, query, orderByChild, equalTo } from 'firebase/database';
-import { getAuth } from 'firebase/auth';
+import { ref, push, get, update, query, orderByChild, equalTo, serverTimestamp, set } from 'firebase/database';
+import { fetchCompleteUserInfo } from './fetchCompleteUserInfo';
 
 /**
  * Envoie un message à un destinataire
+ * @param {string} senderId - ID de l'expéditeur
  * @param {string} recipientId - ID du destinataire
- * @param {string} recipientType - Type du destinataire (admin, instructor, student)
+ * @param {string} recipientRole - Rôle du destinataire (peut être utilisé pour la logique future)
  * @param {string} subject - Sujet du message
  * @param {string} message - Contenu du message
  * @param {string} courseId - ID du cours (optionnel)
  * @param {string} courseName - Nom du cours (optionnel)
  * @returns {Promise<string>} - ID du message créé
  */
-export const sendMessage = async (recipientId, recipientType, subject, message, courseId = null, courseName = null) => {
+export const sendMessage = async (
+    senderId,
+    recipientId,
+    recipientRole,
+    subject,
+    message,
+    courseId = null,
+    courseName = null
+) => {
   try {
-    const auth = getAuth();
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!senderId) {
+      throw new Error('ID de l\'expéditeur manquant');
     }
 
-    // Récupérer les informations de l'utilisateur actuel
-    const userRef = ref(database, `elearning/users/${auth.currentUser.uid}`);
-    const userSnapshot = await get(userRef);
+    const senderData = await fetchCompleteUserInfo(senderId);
+    if (!senderData) {
+        throw new Error('Informations expéditeur non trouvées');
+    }
+    const senderName = `${senderData.firstName || ''} ${senderData.lastName || ''}`.trim() || senderData.email || 'Utilisateur';
+    const senderRole = senderData.role || 'student';
+    const senderEmail = senderData.email || '';
 
-    if (!userSnapshot.exists()) {
-      throw new Error('Informations utilisateur non trouvées');
+    const recipientData = await fetchCompleteUserInfo(recipientId);
+    let recipientName = 'Destinataire Inconnu';
+    if (recipientData) {
+      recipientName = `${recipientData.firstName || ''} ${recipientData.lastName || ''}`.trim() || recipientData.email;
     }
 
-    const userData = userSnapshot.val();
-    const senderName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || auth.currentUser.displayName || 'Utilisateur';
-
-    // Récupérer les informations du destinataire
-    const recipientRef = ref(database, `elearning/users/${recipientId}`);
-    const recipientSnapshot = await get(recipientRef);
-
-    let recipientName = '';
-    if (recipientSnapshot.exists()) {
-      const recipientData = recipientSnapshot.val();
-      recipientName = `${recipientData.firstName || ''} ${recipientData.lastName || ''}`.trim() || 'Destinataire';
-    }
-
-    // Créer le message
     const messageData = {
-      senderId: auth.currentUser.uid,
+      senderId: senderId,
       senderName,
-      senderEmail: auth.currentUser.email,
-      senderType: userData.role || 'student',
+      senderEmail,
+      senderRole,
       recipientId,
-      recipientType,
+      recipientRole,
       recipientName,
       subject,
-      message,
+      content: message,
       courseId,
       courseName,
-      date: new Date().toISOString(),
+      timestamp: serverTimestamp(),
       read: false,
-      deleted: false
+      deletedBySender: false,
+      deletedByRecipient: false,
     };
 
-    // Enregistrer le message dans Firebase
     const messagesRef = ref(database, 'elearning/messages');
-    const newMessageRef = await push(messagesRef, messageData);
+    const newMessageRef = push(messagesRef);
+    await set(newMessageRef, messageData);
 
     return newMessageRef.key;
   } catch (error) {
@@ -71,31 +72,25 @@ export const sendMessage = async (recipientId, recipientType, subject, message, 
 };
 
 /**
- * Récupère les messages reçus par l'utilisateur actuel
+ * Récupère les messages reçus par l'utilisateur spécifié
+ * @param {string} userId - ID de l'utilisateur
  * @returns {Promise<Array>} - Liste des messages reçus
  */
-export const getReceivedMessages = async () => {
+export const getReceivedMessages = async (userId) => {
   try {
-    const auth = getAuth();
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!userId) {
+      throw new Error('ID utilisateur manquant');
     }
 
-    // Récupérer le rôle de l'utilisateur
-    const userRef = ref(database, `elearning/users/${auth.currentUser.uid}`);
-    const userSnapshot = await get(userRef);
-
-    if (!userSnapshot.exists()) {
-      throw new Error('Informations utilisateur non trouvées');
-    }
-
-    const userData = userSnapshot.val();
-    const userRole = userData.role || 'student';
-
-    // Récupérer tous les messages
     const messagesRef = ref(database, 'elearning/messages');
-    const snapshot = await get(messagesRef);
+    const receivedMessagesQuery = query(
+        messagesRef,
+        orderByChild('recipientId'),
+        equalTo(userId)
+    );
+
+    const snapshot = await get(receivedMessagesQuery);
 
     if (!snapshot.exists()) {
       return [];
@@ -105,36 +100,14 @@ export const getReceivedMessages = async () => {
     const messagesArray = Object.entries(messagesData).map(([id, message]) => ({
       id,
       ...message,
-      date: new Date(message.date)
+      timestamp: message.timestamp,
     }));
 
-    // Filtrer les messages selon le rôle de l'utilisateur
-    let receivedMessages = [];
+    const filteredMessages = messagesArray.filter(message => !message.deletedByRecipient);
 
-    if (userRole === 'admin') {
-      // Les administrateurs voient tous les messages qui leur sont adressés
-      receivedMessages = messagesArray.filter(
-        message => message.recipientType === 'admin' || message.recipientId === auth.currentUser.uid
-      );
-    } else if (userRole === 'instructor') {
-      // Les instructeurs voient les messages des étudiants inscrits à leurs cours et des administrateurs
-      receivedMessages = messagesArray.filter(
-        message => message.recipientId === auth.currentUser.uid
-      );
-    } else {
-      // Les étudiants voient uniquement les messages qui leur sont adressés
-      receivedMessages = messagesArray.filter(
-        message => message.recipientId === auth.currentUser.uid
-      );
-    }
+    filteredMessages.sort((a, b) => b.timestamp - a.timestamp);
 
-    // Filtrer les messages supprimés
-    receivedMessages = receivedMessages.filter(message => !message.deleted);
-
-    // Trier par date (plus récent d'abord)
-    receivedMessages.sort((a, b) => b.date - a.date);
-
-    return receivedMessages;
+    return filteredMessages;
   } catch (error) {
     console.error('Error fetching received messages:', error);
     throw error;
@@ -142,20 +115,25 @@ export const getReceivedMessages = async () => {
 };
 
 /**
- * Récupère les messages envoyés par l'utilisateur actuel
+ * Récupère les messages envoyés par l'utilisateur spécifié
+ * @param {string} userId - ID de l'utilisateur
  * @returns {Promise<Array>} - Liste des messages envoyés
  */
-export const getSentMessages = async () => {
+export const getSentMessages = async (userId) => {
   try {
-    const auth = getAuth();
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!userId) {
+      throw new Error('ID utilisateur manquant');
     }
 
-    // Récupérer tous les messages
     const messagesRef = ref(database, 'elearning/messages');
-    const snapshot = await get(messagesRef);
+     const sentMessagesQuery = query(
+        messagesRef,
+        orderByChild('senderId'),
+        equalTo(userId)
+    );
+
+    const snapshot = await get(sentMessagesQuery);
 
     if (!snapshot.exists()) {
       return [];
@@ -165,18 +143,14 @@ export const getSentMessages = async () => {
     const messagesArray = Object.entries(messagesData).map(([id, message]) => ({
       id,
       ...message,
-      date: new Date(message.date)
+      timestamp: message.timestamp,
     }));
 
-    // Filtrer les messages envoyés par l'utilisateur
-    let sentMessages = messagesArray.filter(
-      message => message.senderId === auth.currentUser.uid && !message.deleted
-    );
+    const filteredMessages = messagesArray.filter(message => !message.deletedBySender);
 
-    // Trier par date (plus récent d'abord)
-    sentMessages.sort((a, b) => b.date - a.date);
+    filteredMessages.sort((a, b) => b.timestamp - a.timestamp);
 
-    return sentMessages;
+    return filteredMessages;
   } catch (error) {
     console.error('Error fetching sent messages:', error);
     throw error;
@@ -184,20 +158,30 @@ export const getSentMessages = async () => {
 };
 
 /**
- * Marque un message comme lu ou non lu
+ * Marque un message comme lu ou non lu par le destinataire
+ * @param {string} userId - ID de l'utilisateur (destinataire)
  * @param {string} messageId - ID du message
  * @param {boolean} isRead - État de lecture du message
  * @returns {Promise<void>}
  */
-export const markMessageAsRead = async (messageId, isRead = true) => {
+export const markMessageAsRead = async (userId, messageId, isRead = true) => {
   try {
-    const auth = getAuth();
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!userId) {
+      throw new Error('ID utilisateur manquant');
     }
 
     const messageRef = ref(database, `elearning/messages/${messageId}`);
+
+    const snapshot = await get(messageRef);
+    if (!snapshot.exists()) {
+        throw new Error("Message non trouvé.");
+    }
+    const messageData = snapshot.val();
+    if (messageData.recipientId !== userId) {
+        throw new Error("Permission refusée: Vous n'êtes pas le destinataire de ce message.");
+    }
+
     await update(messageRef, { read: isRead });
   } catch (error) {
     console.error('Error updating message status:', error);
@@ -206,20 +190,46 @@ export const markMessageAsRead = async (messageId, isRead = true) => {
 };
 
 /**
- * Supprime un message (marque comme supprimé)
+ * Supprime un message pour l'utilisateur actuel (marque comme supprimé pour cet utilisateur)
+ * @param {string} userId - ID de l'utilisateur actuel
  * @param {string} messageId - ID du message
+ * @param {'received' | 'sent'} messageType - Indique si le message est dans la boîte de réception ou envoyés
  * @returns {Promise<void>}
  */
-export const deleteMessage = async (messageId) => {
+export const deleteMessage = async (userId, messageId, messageType) => {
   try {
-    const auth = getAuth();
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!userId) {
+      throw new Error('ID utilisateur manquant');
+    }
+    if (!messageType || (messageType !== 'received' && messageType !== 'sent')) {
+        throw new Error('Type de message invalide pour la suppression.');
     }
 
     const messageRef = ref(database, `elearning/messages/${messageId}`);
-    await update(messageRef, { deleted: true });
+
+    const snapshot = await get(messageRef);
+    if (!snapshot.exists()) {
+        console.warn(`Attempted to delete non-existent message: ${messageId}`);
+        return;
+    }
+    const messageData = snapshot.val();
+
+    let updateData = {};
+    if (messageType === 'received' && messageData.recipientId === userId) {
+        updateData = { deletedByRecipient: true };
+    } else if (messageType === 'sent' && messageData.senderId === userId) {
+        updateData = { deletedBySender: true };
+    } else {
+         throw new Error("Permission refusée: Vous ne pouvez pas supprimer ce message.");
+    }
+    
+    if (Object.keys(updateData).length > 0) {
+        await update(messageRef, updateData);
+    } else {
+        console.warn(`No valid delete operation for message ${messageId} by user ${userId}`);
+    }
+
   } catch (error) {
     console.error('Error deleting message:', error);
     throw error;
@@ -228,126 +238,114 @@ export const deleteMessage = async (messageId) => {
 
 /**
  * Récupère les utilisateurs disponibles pour l'envoi de messages selon le rôle de l'utilisateur actuel
- * @returns {Promise<Object>} - Listes d'utilisateurs par rôle
+ * @param {string} userId - ID de l'utilisateur actuel
+ * @param {string} userRole - Rôle de l'utilisateur actuel
+ * @returns {Promise<Object>} - Listes d'utilisateurs par rôle { admins: [], instructors: [], students: [] }
  */
-export const getAvailableRecipients = async () => {
+export const getAvailableRecipients = async (userId, userRole) => {
   try {
-    const auth = getAuth();
+    // const auth = getAuth(); // Removed
     const database = getDatabase();
-    if (!auth.currentUser) {
-      throw new Error('Utilisateur non authentifié');
+    if (!userId || !userRole) { // Check passed arguments
+      throw new Error('User ID ou Role manquant pour récupérer les destinataires');
     }
 
-    // Récupérer le rôle de l'utilisateur
-    const userRef = ref(database, `elearning/users/${auth.currentUser.uid}`);
-    const userSnapshot = await get(userRef);
-
-    if (!userSnapshot.exists()) {
-      throw new Error('Informations utilisateur non trouvées');
-    }
-
-    const userData = userSnapshot.val();
-    const userRole = userData.role || 'student';
-
-    // Récupérer tous les utilisateurs
+    // 1. Fetch all users
     const usersRef = ref(database, 'elearning/users');
-    const snapshot = await get(usersRef);
+    const usersSnapshot = await get(usersRef);
 
-    if (!snapshot.exists()) {
+    if (!usersSnapshot.exists()) {
       return { admins: [], instructors: [], students: [] };
     }
 
-    const usersData = snapshot.val();
-    const usersArray = Object.entries(usersData).map(([id, user]) => ({
-      id,
-      ...user,
-      displayName: `${user.firstName || ''} ${user.lastName || ''}`.trim()
-    }));
+    const usersData = usersSnapshot.val();
+    // 2. Filter out the current user and format
+    const allOtherUsers = Object.entries(usersData)
+        .filter(([id]) => id !== userId)
+        .map(([id, user]) => ({
+            id,
+            ...user,
+            displayName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Utilisateur'
+        }));
 
-    // Filtrer les utilisateurs selon le rôle de l'utilisateur actuel
-    const admins = usersArray.filter(user => user.role === 'admin' && user.id !== auth.currentUser.uid);
-    const instructors = usersArray.filter(user => user.role === 'instructor' && user.id !== auth.currentUser.uid);
-    const students = usersArray.filter(user => user.role === 'student' && user.id !== auth.currentUser.uid);
+    // 3. Separate users by role
+    const admins = allOtherUsers.filter(user => user.role === 'admin');
+    const instructors = allOtherUsers.filter(user => user.role === 'instructor');
+    const students = allOtherUsers.filter(user => user.role === 'student');
 
+    // 4. Determine final lists based on userRole
+
+    // 4a. Admin can message everyone else
     if (userRole === 'admin') {
-      // Les administrateurs peuvent contacter tous les utilisateurs
       return { admins, instructors, students };
-    } else if (userRole === 'instructor') {
-      // Les instructeurs peuvent contacter les administrateurs et les étudiants inscrits à leurs cours
-
-      // Récupérer les cours de l'instructeur
-      const coursesRef = ref(database, 'elearning/courses');
-      const coursesSnapshot = await get(coursesRef);
-
-      let instructorCourses = [];
-      if (coursesSnapshot.exists()) {
-        const coursesData = coursesSnapshot.val();
-        instructorCourses = Object.values(coursesData).filter(
-          course => course.instructorId === auth.currentUser.uid
-        );
-      }
-
-      // Récupérer les inscriptions aux cours de l'instructeur
-      const enrollmentsRef = ref(database, 'elearning/enrollments');
-      const enrollmentsSnapshot = await get(enrollmentsRef);
-
-      let enrolledStudentIds = new Set();
-      if (enrollmentsSnapshot.exists()) {
-        const enrollmentsData = enrollmentsSnapshot.val();
-
-        // Pour chaque utilisateur
-        Object.entries(enrollmentsData).forEach(([userId, userEnrollments]) => {
-          // Pour chaque inscription de l'utilisateur
-          Object.entries(userEnrollments).forEach(([courseId, enrollment]) => {
-            // Si le cours appartient à l'instructeur
-            if (instructorCourses.some(course => course.id === courseId)) {
-              enrolledStudentIds.add(userId);
-            }
-          });
-        });
-      }
-
-      // Filtrer les étudiants inscrits aux cours de l'instructeur
-      const enrolledStudents = students.filter(student => enrolledStudentIds.has(student.id));
-
-      return { admins, instructors: [], students: enrolledStudents };
-    } else {
-      // Les étudiants peuvent contacter les administrateurs et les instructeurs de leurs cours
-
-      // Récupérer les inscriptions de l'étudiant
-      const studentEnrollmentsRef = ref(database, `elearning/enrollments/${auth.currentUser.uid}`);
-      const enrollmentsSnapshot = await get(studentEnrollmentsRef);
-
-      let enrolledCourseIds = new Set();
-      if (enrollmentsSnapshot.exists()) {
-        const enrollmentsData = enrollmentsSnapshot.val();
-        enrolledCourseIds = new Set(Object.keys(enrollmentsData));
-      }
-
-      // Récupérer les cours auxquels l'étudiant est inscrit
-      const coursesRef = ref(database, 'elearning/courses');
-      const coursesSnapshot = await get(coursesRef);
-
-      let courseInstructorIds = new Set();
-      if (coursesSnapshot.exists() && enrolledCourseIds.size > 0) {
-        const coursesData = coursesSnapshot.val();
-
-        // Pour chaque cours
-        Object.entries(coursesData).forEach(([courseId, course]) => {
-          // Si l'étudiant est inscrit à ce cours
-          if (enrolledCourseIds.has(courseId) && course.instructorId) {
-            courseInstructorIds.add(course.instructorId);
-          }
-        });
-      }
-
-      // Filtrer les instructeurs des cours de l'étudiant
-      const courseInstructors = instructors.filter(instructor => courseInstructorIds.has(instructor.id));
-
-      return { admins, instructors: courseInstructors, students: [] };
     }
+
+    // 4b. Instructor can message Admins and their enrolled Students
+    if (userRole === 'instructor') {
+      let enrolledStudentIds = new Set();
+      
+      // Get instructor's courses first (efficiently, if possible)
+      // Using a less efficient query for now: filter all courses client-side
+      const coursesRef = ref(database, 'elearning/courses');
+      const coursesSnapshot = await get(query(coursesRef, orderByChild('instructorId'), equalTo(userId)));
+      
+      if (coursesSnapshot.exists()) {
+          const instructorCoursesData = coursesSnapshot.val();
+          const courseIds = Object.keys(instructorCoursesData);
+
+          // For each course, get enrollments (can be parallelized)
+          const enrollmentPromises = courseIds.map(courseId => 
+              get(ref(database, `elearning/enrollments/byCourse/${courseId}`))
+          );
+          const enrollmentSnapshots = await Promise.all(enrollmentPromises);
+
+          enrollmentSnapshots.forEach(snapshot => {
+              if (snapshot.exists()) {
+                  const courseEnrollments = snapshot.val();
+                  Object.keys(courseEnrollments).forEach(studentId => enrolledStudentIds.add(studentId));
+              }
+          });
+      }
+
+      const enrolledStudents = students.filter(student => enrolledStudentIds.has(student.id));
+      return { admins, instructors: [], students: enrolledStudents }; // Instructors don't message other instructors usually
+    }
+
+    // 4c. Student can message Admins and Instructors of their courses
+    if (userRole === 'student') {
+       let courseInstructorIds = new Set();
+
+       // Get student's enrollments
+       const studentEnrollmentsRef = ref(database, `elearning/enrollments/byUser/${userId}`);
+       const enrollmentsSnapshot = await get(studentEnrollmentsRef);
+
+       if (enrollmentsSnapshot.exists()) {
+           const enrollmentsData = enrollmentsSnapshot.val();
+           const enrolledCourseIds = Object.keys(enrollmentsData);
+
+           // Get instructor IDs for these courses (can be parallelized)
+           const coursePromises = enrolledCourseIds.map(courseId => 
+               get(ref(database, `elearning/courses/${courseId}/instructorId`))
+           );
+           const courseSnapshots = await Promise.all(coursePromises);
+
+           courseSnapshots.forEach(snapshot => {
+               if (snapshot.exists()) {
+                   courseInstructorIds.add(snapshot.val());
+               }
+           });
+       }
+
+       const courseInstructors = instructors.filter(instructor => courseInstructorIds.has(instructor.id));
+       return { admins, instructors: courseInstructors, students: [] };
+    }
+
+    // Default: Should not happen if role is valid
+    console.warn('Unknown user role for recipients:', userRole);
+    return { admins: [], instructors: [], students: [] };
+
   } catch (error) {
     console.error('Error fetching available recipients:', error);
-    throw error;
+    throw error; // Rethrow error to be handled by the calling component
   }
 };

@@ -382,9 +382,42 @@ export const fetchInstructorCourses = async (instructorId) => {
     for (const courseId in allCourses) {
       const course = allCourses[courseId];
       if (course.formateur === instructorId || course.instructorId === instructorId) {
+        // Récupérer le nombre d'étudiants inscrits à ce cours
+        let studentCount = 0;
+
+        // Vérifier dans elearning/enrollments/byCourse
+        try {
+          const enrollmentsRef = ref(database, `elearning/enrollments/byCourse/${courseId}`);
+          const enrollmentsSnapshot = await get(enrollmentsRef);
+
+          if (enrollmentsSnapshot.exists()) {
+            const enrollments = enrollmentsSnapshot.val();
+            studentCount = Object.keys(enrollments).length;
+          }
+        } catch (enrollmentError) {
+          console.error(`Error fetching enrollments for course ${courseId}:`, enrollmentError);
+        }
+
+        // Si aucune inscription n'est trouvée, vérifier dans l'ancienne structure
+        if (studentCount === 0) {
+          try {
+            const legacyEnrollmentsRef = ref(database, `Elearning/Enrollments/${courseId}`);
+            const legacyEnrollmentsSnapshot = await get(legacyEnrollmentsRef);
+
+            if (legacyEnrollmentsSnapshot.exists()) {
+              const legacyEnrollments = legacyEnrollmentsSnapshot.val();
+              studentCount = Object.keys(legacyEnrollments).length;
+            }
+          } catch (legacyError) {
+            console.error(`Error fetching legacy enrollments for course ${courseId}:`, legacyError);
+          }
+        }
+
+        // Ajouter le cours avec le nombre d'étudiants
         instructorCourses.push({
           id: courseId,
-          ...course
+          ...course,
+          students: studentCount
         });
       }
     }

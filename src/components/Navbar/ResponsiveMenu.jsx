@@ -8,6 +8,10 @@ import {
   MdBook,
   MdSettings,
   MdMessage,
+  MdDashboard,
+  MdAdminPanelSettings,
+  MdSchool,
+  MdEmail,
 } from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
 
@@ -66,11 +70,17 @@ const ResponsiveMenu = ({ isOpen, user, userType, userInfo, handleLogout }) => {
                   )}
                   <li>
                     <Link
-                      to={`/dashboard/${userType}`}
+                      to={
+                        userType === "admin"
+                          ? "/admin/dashboard"
+                          : userType === "instructor"
+                          ? "/instructor/dashboard"
+                          : "/student/dashboard"
+                      }
                       className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
                     >
-                      <MdSettings />
-                      Dashboard
+                      <MdDashboard />
+                      Tableau de bord
                     </Link>
                   </li>
                   <li>
@@ -82,22 +92,49 @@ const ResponsiveMenu = ({ isOpen, user, userType, userInfo, handleLogout }) => {
                       Mon profil
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      to="/my-courses"
-                      className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
-                    >
-                      <MdBook />
-                      Mes formations
-                    </Link>
-                  </li>
+                  {/* Lien vers les cours selon le rôle */}
+                  {userType === "student" && (
+                    <li>
+                      <Link
+                        to="/student/enrollments"
+                        className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
+                      >
+                        <MdBook />
+                        Mes formations
+                      </Link>
+                    </li>
+                  )}
+                  {userType === "instructor" && (
+                    <li>
+                      <Link
+                        to="/instructor/courses"
+                        className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
+                      >
+                        <MdBook />
+                        Mes cours
+                      </Link>
+                    </li>
+                  )}
+                  {userType === "admin" && (
+                    <li>
+                      <Link
+                        to="/admin/courses"
+                        className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
+                      >
+                        <MdBook />
+                        Gestion des cours
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Link
                       to="/messages"
                       className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"
                     >
                       <MdMessage />
-                      {userType === "formateur" || userType === "instructor"
+                      {userType === "admin"
+                        ? "Messages"
+                        : userType === "instructor"
                         ? "Messages des étudiants"
                         : "Contacter les formateurs"}
                     </Link>

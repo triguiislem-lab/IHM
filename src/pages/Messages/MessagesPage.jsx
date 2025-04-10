@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { getAuth } from "firebase/auth";
-import { database } from "../../../firebaseConfig";
-import { ref, get } from "firebase/database";
+import React, { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { getDatabase, ref, get } from "firebase/database";
+import { Link } from "react-router-dom";
 import {
   MdInbox,
   MdOutbox,
@@ -14,6 +14,7 @@ import {
   MdPeople,
   MdAdminPanelSettings,
   MdSchool,
+  MdClose,
 } from "react-icons/md";
 import {
   getReceivedMessages,
@@ -23,188 +24,155 @@ import {
   getAvailableRecipients,
   sendMessage,
 } from "../../utils/messageUtils";
+import LoadingSpinner from "../../components/Common/LoadingSpinner";
+import { motion, AnimatePresence } from "framer-motion";
 
 const MessagesPage = () => {
+  const { user, role, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState([]);
   const [sentMessages, setSentMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("inbox");
   const [selectedMessage, setSelectedMessage] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [showNewMessage, setShowNewMessage] = useState(false);
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [recipients, setRecipients] = useState({
     admins: [],
     instructors: [],
     students: [],
   });
-  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [selectedRecipientId, setSelectedRecipientId] = useState("");
   const [subject, setSubject] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [sending, setSending] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState("");
 
-  const auth = getAuth();
+  const database = getDatabase();
 
-  // Vérifier le rôle de l'utilisateur
+  const fetchMessages = useCallback(async () => {
+    if (!user) return;
+
+    setLoadingMessages(true);
+    setError("");
+
+    try {
+      const [received, sent] = await Promise.all([
+        getReceivedMessages(user.uid),
+        getSentMessages(user.uid),
+      ]);
+      setMessages(received);
+      setSentMessages(sent);
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+      setError("Erreur lors de la récupération des messages");
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [user]);
+
   useEffect(() => {
-    const checkUserRole = async () => {
-      if (!auth.currentUser) return;
-
-      try {
-        // Vérifier le rôle dans la nouvelle structure
-        const userRef = ref(
-          database,
-          `elearning/users/${auth.currentUser.uid}`
-        );
-        const userSnapshot = await get(userRef);
-
-        if (userSnapshot.exists()) {
-          const userData = userSnapshot.val();
-          setUserRole(userData.role || "student");
-          return;
-        }
-
-        // Si non trouvé, vérifier dans l'ancienne structure
-        // Vérifier si l'utilisateur est un administrateur
-        const adminRef = ref(
-          database,
-          `Elearning/Administrateurs/${auth.currentUser.uid}`
-        );
-        const adminSnapshot = await get(adminRef);
-
-        if (adminSnapshot.exists()) {
-          setUserRole("admin");
-          return;
-        }
-
-        // Vérifier si l'utilisateur est un formateur
-        const instructorRef = ref(
-          database,
-          `Elearning/Formateurs/${auth.currentUser.uid}`
-        );
-        const instructorSnapshot = await get(instructorRef);
-
-        if (instructorSnapshot.exists()) {
-          setUserRole("instructor");
-          return;
-        }
-
-        // Vérifier dans la table Utilisateurs
-        const oldUserRef = ref(
-          database,
-          `Elearning/Utilisateurs/${auth.currentUser.uid}`
-        );
-        const oldUserSnapshot = await get(oldUserRef);
-
-        if (oldUserSnapshot.exists() && oldUserSnapshot.val().userType) {
-          setUserRole(oldUserSnapshot.val().userType);
-        } else {
-          setUserRole("student");
-        }
-      } catch (error) {
-        console.error("Error checking user role:", error);
-        setError("Erreur lors de la vérification du rôle de l'utilisateur");
-      }
-    };
-
-    checkUserRole();
-  }, [auth.currentUser, database]);
-
-  // Récupérer les messages
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!auth.currentUser) return;
-
-      setLoading(true);
-      setError("");
-
-      try {
-        // Récupérer les messages reçus
-        const receivedMessages = await getReceivedMessages();
-        setMessages(receivedMessages);
-
-        // Récupérer les messages envoyés
-        const sentMessages = await getSentMessages();
-        setSentMessages(sentMessages);
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-        setError("Erreur lors de la récupération des messages");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchMessages();
-  }, [auth.currentUser, userRole]);
+  }, [fetchMessages]);
 
-  // Récupérer les destinataires disponibles
   useEffect(() => {
-    const fetchRecipients = async () => {
-      if (!auth.currentUser || !userRole) return;
+    if (!user || !role) return;
 
+    const fetchRecipients = async () => {
       try {
-        const availableRecipients = await getAvailableRecipients();
+        const availableRecipients = await getAvailableRecipients(
+          user.uid,
+          role
+        );
         setRecipients(availableRecipients);
-      } catch (error) {
-        console.error("Error fetching recipients:", error);
+      } catch (err) {
+        console.error("Error fetching recipients:", err);
       }
     };
 
     fetchRecipients();
-  }, [auth.currentUser, userRole]);
+  }, [user, role]);
 
-  // Marquer un message comme lu
-  const markAsRead = async (messageId, isRead = true) => {
-    try {
-      await markMessageAsRead(messageId, isRead);
+  const handleMarkAsRead = useCallback(
+    async (messageId, isRead = true) => {
+      if (!user) return;
+      try {
+        await markMessageAsRead(user.uid, messageId, isRead);
 
-      // Mettre à jour l'état local
-      setMessages(
-        messages.map((message) =>
-          message.id === messageId ? { ...message, read: isRead } : message
-        )
-      );
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.id === messageId ? { ...message, read: isRead } : message
+          )
+        );
 
-      if (selectedMessage && selectedMessage.id === messageId) {
-        setSelectedMessage({ ...selectedMessage, read: isRead });
+        if (selectedMessage && selectedMessage.id === messageId) {
+          setSelectedMessage((prev) =>
+            prev ? { ...prev, read: isRead } : null
+          );
+        }
+      } catch (err) {
+        console.error("Error updating message status:", err);
+        setError("Erreur lors de la mise à jour du statut du message");
       }
-    } catch (error) {
-      console.error("Error updating message status:", error);
-      setError("Erreur lors de la mise à jour du statut du message");
-    }
-  };
+    },
+    [user, selectedMessage]
+  );
 
-  // Supprimer un message
-  const handleDeleteMessage = async (messageId) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce message ?")) {
+  const handleDeleteMessage = useCallback(
+    async (messageId, messageType) => {
+      if (
+        !user ||
+        !window.confirm("Êtes-vous sûr de vouloir supprimer ce message ?")
+      ) {
+        return;
+      }
+
+      try {
+        await deleteMessage(user.uid, messageId, messageType);
+
+        if (messageType === "received") {
+          setMessages((prev) =>
+            prev.filter((message) => message.id !== messageId)
+          );
+        } else {
+          setSentMessages((prev) =>
+            prev.filter((message) => message.id !== messageId)
+          );
+        }
+
+        if (selectedMessage && selectedMessage.id === messageId) {
+          setSelectedMessage(null);
+        }
+        setSuccess("Message supprimé.");
+        setTimeout(() => setSuccess(""), 3000);
+      } catch (err) {
+        console.error("Error deleting message:", err);
+        setError("Erreur lors de la suppression du message");
+      }
+    },
+    [user, selectedMessage]
+  );
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      setError("Authentification requise.");
       return;
     }
 
-    try {
-      await deleteMessage(messageId);
-
-      // Mettre à jour l'état local
-      setMessages(messages.filter((message) => message.id !== messageId));
-      setSentMessages(
-        sentMessages.filter((message) => message.id !== messageId)
-      );
-
-      if (selectedMessage && selectedMessage.id === messageId) {
-        setSelectedMessage(null);
-      }
-    } catch (error) {
-      console.error("Error deleting message:", error);
-      setError("Erreur lors de la suppression du message");
-    }
-  };
-
-  // Envoyer un nouveau message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-
-    if (!selectedRecipient) {
+    if (!selectedRecipientId) {
       setError("Veuillez sélectionner un destinataire");
+      return;
+    }
+
+    const allRecipients = [
+      ...(recipients.admins || []),
+      ...(recipients.instructors || []),
+      ...(recipients.students || []),
+    ];
+    const recipient = allRecipients.find((r) => r.id === selectedRecipientId);
+
+    if (!recipient) {
+      setError("Destinataire invalide.");
       return;
     }
 
@@ -220,479 +188,377 @@ const MessagesPage = () => {
 
     setSending(true);
     setError("");
+    setSuccess("");
 
     try {
       await sendMessage(
-        selectedRecipient.id,
-        selectedRecipient.role,
+        user.uid,
+        recipient.id,
+        recipient.role,
         subject,
         messageContent
       );
 
-      // Réinitialiser le formulaire
-      setSelectedRecipient(null);
+      setSelectedRecipientId("");
       setSubject("");
       setMessageContent("");
-      setShowNewMessage(false);
+      setShowNewMessageModal(false);
       setSuccess("Message envoyé avec succès");
 
-      // Rafraîchir la liste des messages envoyés
-      const sentMessages = await getSentMessages();
-      setSentMessages(sentMessages);
+      const sent = await getSentMessages(user.uid);
+      setSentMessages(sent);
 
-      // Effacer le message de succès après 3 secondes
       setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setError(`Erreur lors de l'envoi du message: ${error.message}`);
+    } catch (err) {
+      console.error("Error sending message:", err);
+      setError(`Erreur lors de l'envoi du message: ${err.message}`);
     } finally {
       setSending(false);
     }
   };
 
-  // Formater la date
-  const formatDate = (date) => {
-    if (!date) return "";
-
-    const now = new Date();
-    const diff = now - date;
-    const oneDay = 24 * 60 * 60 * 1000;
-
-    if (diff < oneDay) {
-      // Aujourd'hui, afficher l'heure
-      return date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } else if (diff < 2 * oneDay) {
-      // Hier
-      return "Hier";
-    } else {
-      // Date complète
-      return date.toLocaleDateString();
+  const openMessage = (message) => {
+    setSelectedMessage(message);
+    if (activeTab === "inbox" && !message.read) {
+      handleMarkAsRead(message.id, true);
     }
   };
 
-  // Personnaliser le titre et la description en fonction du rôle
-  const getRoleSpecificContent = () => {
-    if (userRole === "admin" || userRole === "administrateur") {
-      return {
-        title: "Centre de messages administrateur",
-        description:
-          "Gérez les messages de tous les utilisateurs de la plateforme.",
-        inboxTitle: "Messages reçus",
-        emptyInboxMessage: "Aucun message administratif reçu.",
-      };
-    } else if (userRole === "instructor" || userRole === "formateur") {
-      return {
-        title: "Messages de vos étudiants",
-        description: "Consultez et répondez aux messages concernant vos cours.",
-        inboxTitle: "Questions des étudiants",
-        emptyInboxMessage: "Aucune question d'étudiant pour le moment.",
-      };
-    } else if (userRole === "student" || userRole === "apprenant") {
-      return {
-        title: "Vos conversations",
-        description:
-          "Consultez vos échanges avec les formateurs et administrateurs.",
-        inboxTitle: "Réponses reçues",
-        emptyInboxMessage:
-          "Aucun message reçu. Vous pouvez contacter un formateur depuis la page d'un cours.",
-      };
-    } else {
-      return {
-        title: "Messagerie",
-        description: "Consultez vos messages.",
-        inboxTitle: "Messages reçus",
-        emptyInboxMessage: "Aucun message reçu.",
-      };
-    }
+  const closeMessage = () => {
+    setSelectedMessage(null);
   };
 
-  const roleContent = getRoleSpecificContent();
+  const closeNewMessageModal = () => {
+    setShowNewMessageModal(false);
+    setSelectedRecipientId("");
+    setSubject("");
+    setMessageContent("");
+    setError("");
+  };
 
-  // Vérifier si l'utilisateur est autorisé à accéder à cette page
-  if (
-    userRole !== "admin" &&
-    userRole !== "instructor" &&
-    userRole !== "formateur" &&
-    userRole !== "administrateur" &&
-    userRole !== "student" &&
-    userRole !== "apprenant"
-  ) {
+  const isLoading = authLoading || loadingMessages;
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-          <h2 className="text-xl font-semibold text-red-700 mb-2">
-            Accès non autorisé
-          </h2>
-          <p className="text-red-600">
-            Vous n'avez pas les autorisations nécessaires pour accéder à cette
-            page.
-          </p>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <h1 className="text-2xl font-bold mb-4">Accès non autorisé</h1>
+        <p className="text-gray-600 mb-8">
+          Veuillez vous connecter pour accéder à la messagerie.
+        </p>
+        <Link
+          to="/login"
+          className="bg-indigo-600 text-white px-6 py-2 rounded-full hover:bg-indigo-700 transition-colors duration-300"
+        >
+          Connexion
+        </Link>
       </div>
     );
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-2">{roleContent.title}</h1>
-      <p className="text-gray-600 mb-6">{roleContent.description}</p>
+  const currentMessages = activeTab === "inbox" ? messages : sentMessages;
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b">
-          <div className="flex rounded-md overflow-hidden flex-1">
-            <button
-              onClick={() => setShowNewMessage(true)}
-              className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
-            >
-              <MdSend />
-              Nouveau message
-            </button>
-          </div>
+  const renderName = (msg) => {
+    if (activeTab === "inbox") {
+      return (
+        msg.senderName || msg.sender?.firstName || msg.senderEmail || "Inconnu"
+      );
+    }
+    return (
+      msg.recipientName ||
+      msg.recipient?.firstName ||
+      msg.recipientEmail ||
+      "Inconnu"
+    );
+  };
+
+  const recipientOptions = [
+    { label: "Administrateurs", options: recipients.admins || [] },
+    { label: "Formateurs", options: recipients.instructors || [] },
+    { label: "Étudiants", options: recipients.students || [] },
+  ];
+
+  return (
+    <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row gap-8 h-[calc(100vh-100px)]">
+      <aside className="w-full md:w-1/3 lg:w-1/4 flex flex-col border rounded-lg shadow-sm bg-white">
+        <div className="p-4 border-b">
+          <button
+            onClick={() => setShowNewMessageModal(true)}
+            className="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-300 flex items-center justify-center gap-2"
+          >
+            <MdSend /> Nouveau Message
+          </button>
         </div>
+
         <div className="flex border-b">
           <button
-            className={`flex-1 py-3 px-4 flex items-center justify-center gap-2 ${
+            onClick={() => {
+              setActiveTab("inbox");
+              setSelectedMessage(null);
+            }}
+            className={`flex-1 p-3 text-center flex items-center justify-center gap-2 ${
               activeTab === "inbox"
-                ? "bg-secondary text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "border-b-2 border-indigo-500 text-indigo-600 bg-indigo-50"
+                : "text-gray-500 hover:bg-gray-100"
             }`}
-            onClick={() => setActiveTab("inbox")}
           >
-            <MdInbox />
-            Boîte de réception
-            {messages.filter((m) => !m.read).length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                {messages.filter((m) => !m.read).length}
-              </span>
-            )}
+            <MdInbox /> Boîte de réception (
+            {messages.filter((m) => !m.read).length})
           </button>
           <button
-            className={`flex-1 py-3 px-4 flex items-center justify-center gap-2 ${
+            onClick={() => {
+              setActiveTab("sent");
+              setSelectedMessage(null);
+            }}
+            className={`flex-1 p-3 text-center flex items-center justify-center gap-2 ${
               activeTab === "sent"
-                ? "bg-secondary text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "border-b-2 border-indigo-500 text-indigo-600 bg-indigo-50"
+                : "text-gray-500 hover:bg-gray-100"
             }`}
-            onClick={() => setActiveTab("sent")}
           >
-            <MdOutbox />
-            Messages envoyés
+            <MdOutbox /> Messages envoyés
           </button>
         </div>
 
-        <div className="flex h-[600px]">
-          {/* Liste des messages */}
-          <div className="w-1/3 border-r overflow-y-auto">
-            <div className="p-3 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="font-semibold">
-                {activeTab === "inbox"
-                  ? roleContent.inboxTitle
-                  : "Messages envoyés"}
-              </h2>
-              <button
-                onClick={() => window.location.reload()}
-                className="p-1 rounded-full hover:bg-gray-200 transition-colors duration-300"
-                title="Actualiser"
+        <div className="overflow-y-auto flex-grow">
+          {currentMessages.length === 0 ? (
+            <p className="text-center text-gray-500 p-4">Aucun message.</p>
+          ) : (
+            currentMessages.map((msg) => (
+              <div
+                key={msg.id}
+                onClick={() => openMessage(msg)}
+                className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
+                  selectedMessage?.id === msg.id ? "bg-indigo-50" : "bg-white"
+                } ${
+                  activeTab === "inbox" && !msg.read
+                    ? "font-semibold text-gray-900"
+                    : "text-gray-700"
+                }`}
               >
-                <MdRefresh />
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center items-center h-20">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-secondary"></div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm truncate max-w-[70%]">
+                    {renderName(msg)}
+                  </span>
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {new Date(msg.timestamp).toLocaleDateString()}{" "}
+                    {new Date(msg.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <p className="text-sm truncate font-normal text-gray-800">
+                  {msg.subject}
+                </p>
               </div>
-            ) : error ? (
-              <div className="p-4 text-red-600">{error}</div>
-            ) : activeTab === "inbox" ? (
-              messages.length > 0 ? (
-                <div>
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
-                        selectedMessage && selectedMessage.id === message.id
-                          ? "bg-blue-50"
-                          : message.read
-                          ? ""
-                          : "font-semibold bg-gray-100"
-                      }`}
-                      onClick={() => {
-                        setSelectedMessage(message);
-                        if (!message.read) {
-                          markAsRead(message.id, true);
-                        }
-                      }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="text-sm font-medium truncate">
-                            {message.senderName || message.senderEmail}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatDate(message.date)}
-                          </div>
-                        </div>
-                        {!message.read && (
-                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        )}
-                      </div>
-                      <div className="text-sm font-medium mt-1 truncate">
-                        {message.subject}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1 truncate">
-                        {message.message}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-4 text-gray-600">
-                  {roleContent.emptyInboxMessage}
-                </div>
-              )
-            ) : sentMessages.length > 0 ? (
+            ))
+          )}
+        </div>
+        <div className="p-2 border-t text-center">
+          <button
+            onClick={fetchMessages}
+            title="Rafraîchir les messages"
+            className="text-gray-500 hover:text-indigo-600 p-2 rounded-full"
+          >
+            <MdRefresh size={20} />
+          </button>
+        </div>
+      </aside>
+
+      <main className="w-full md:w-2/3 lg:w-3/4 flex flex-col border rounded-lg shadow-sm bg-white overflow-hidden">
+        {selectedMessage ? (
+          <div className="flex flex-col h-full">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
-                {sentMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
-                      selectedMessage && selectedMessage.id === message.id
-                        ? "bg-blue-50"
-                        : ""
-                    }`}
-                    onClick={() => setSelectedMessage(message)}
+                <h2 className="text-lg font-semibold truncate max-w-md">
+                  {selectedMessage.subject}
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {activeTab === "inbox" ? "De" : "À"}:{" "}
+                  <span className="font-medium">
+                    {renderName(selectedMessage)}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {new Date(selectedMessage.timestamp).toLocaleString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeTab === "inbox" && (
+                  <button
+                    onClick={() =>
+                      handleMarkAsRead(
+                        selectedMessage.id,
+                        !selectedMessage.read
+                      )
+                    }
+                    title={
+                      selectedMessage.read
+                        ? "Marquer comme non lu"
+                        : "Marquer comme lu"
+                    }
+                    className="text-gray-500 hover:text-indigo-600 p-2 rounded-full"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-sm font-medium truncate">
-                          À: {message.recipientName}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {formatDate(message.date)}
-                        </div>
-                      </div>
-                      {message.read && (
-                        <div className="text-xs text-green-600">Lu</div>
-                      )}
-                    </div>
-                    <div className="text-sm font-medium mt-1 truncate">
-                      {message.subject}
-                    </div>
-                    <div className="text-xs text-gray-600 mt-1 truncate">
-                      {message.message}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 text-gray-600">Aucun message envoyé.</div>
-            )}
-          </div>
-
-          {/* Détail du message */}
-          <div className="w-2/3 overflow-y-auto">
-            {selectedMessage ? (
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold">
-                      {selectedMessage.subject}
-                    </h2>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {activeTab === "inbox" ? (
-                        <span>
-                          De:{" "}
-                          {selectedMessage.senderName ||
-                            selectedMessage.senderEmail}
-                        </span>
-                      ) : (
-                        <span>À: {selectedMessage.recipientName}</span>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {selectedMessage.date.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="flex space-x-2">
-                    {activeTab === "inbox" && (
-                      <>
-                        <button
-                          onClick={() =>
-                            markAsRead(
-                              selectedMessage.id,
-                              !selectedMessage.read
-                            )
-                          }
-                          className="p-2 rounded-full hover:bg-gray-200 transition-colors duration-300"
-                          title={
-                            selectedMessage.read
-                              ? "Marquer comme non lu"
-                              : "Marquer comme lu"
-                          }
-                        >
-                          {selectedMessage.read ? (
-                            <MdMarkEmailUnread />
-                          ) : (
-                            <MdMarkEmailRead />
-                          )}
-                        </button>
-                      </>
+                    {selectedMessage.read ? (
+                      <MdMarkEmailUnread size={20} />
+                    ) : (
+                      <MdMarkEmailRead size={20} />
                     )}
-                    <button
-                      onClick={() => handleDeleteMessage(selectedMessage.id)}
-                      className="p-2 rounded-full hover:bg-gray-200 transition-colors duration-300"
-                      title="Supprimer"
-                    >
-                      <MdDelete />
-                    </button>
-                  </div>
-                </div>
-
-                {selectedMessage.courseId && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                    <div className="text-sm">
-                      <span className="font-medium">Cours concerné: </span>
-                      {selectedMessage.courseName || selectedMessage.courseId}
-                    </div>
-                  </div>
+                  </button>
                 )}
+                <button
+                  onClick={() =>
+                    handleDeleteMessage(selectedMessage.id, activeTab)
+                  }
+                  title="Supprimer le message"
+                  className="text-gray-500 hover:text-red-600 p-2 rounded-full"
+                >
+                  <MdDelete size={20} />
+                </button>
+                <button
+                  onClick={closeMessage}
+                  title="Fermer"
+                  className="text-gray-500 hover:text-gray-800 p-2 rounded-full"
+                >
+                  <MdClose size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-grow whitespace-pre-wrap">
+              {selectedMessage.content}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            Sélectionnez un message pour le lire.
+          </div>
+        )}
+      </main>
 
-                <div className="mt-6 p-4 bg-white border rounded-md whitespace-pre-wrap">
-                  {selectedMessage.message}
+      <AnimatePresence>
+        {showNewMessageModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={closeNewMessageModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <form onSubmit={handleSendMessage}>
+                <div className="p-6 border-b flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Nouveau Message</h2>
+                  <button
+                    type="button"
+                    onClick={closeNewMessageModal}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <MdClose size={24} />
+                  </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <MdInbox className="text-6xl mb-4" />
-                <p>Sélectionnez un message pour l'afficher</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal pour envoyer un nouveau message */}
-      {showNewMessage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">Nouveau message</h3>
-
-            <form onSubmit={handleSendMessage}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Destinataire
-                </label>
-                <select
-                  value={
-                    selectedRecipient ? JSON.stringify(selectedRecipient) : ""
-                  }
-                  onChange={(e) =>
-                    setSelectedRecipient(
-                      e.target.value ? JSON.parse(e.target.value) : null
-                    )
-                  }
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  required
-                >
-                  <option value="">Sélectionnez un destinataire</option>
-
-                  {recipients.admins.length > 0 && (
-                    <optgroup label="Administrateurs">
-                      {recipients.admins.map((admin) => (
-                        <option key={admin.id} value={JSON.stringify(admin)}>
-                          {admin.displayName || admin.email}
-                        </option>
-                      ))}
-                    </optgroup>
+                <div className="p-6 space-y-4">
+                  {error && (
+                    <div className="bg-red-100 text-red-700 p-3 rounded text-sm">
+                      {error}
+                    </div>
                   )}
-
-                  {recipients.instructors.length > 0 && (
-                    <optgroup label="Formateurs">
-                      {recipients.instructors.map((instructor) => (
-                        <option
-                          key={instructor.id}
-                          value={JSON.stringify(instructor)}
-                        >
-                          {instructor.displayName || instructor.email}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {recipients.students.length > 0 && (
-                    <optgroup label="Étudiants">
-                      {recipients.students.map((student) => (
-                        <option
-                          key={student.id}
-                          value={JSON.stringify(student)}
-                        >
-                          {student.displayName || student.email}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Sujet
-                </label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  placeholder="Sujet du message"
-                  required
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Message
-                </label>
-                <textarea
-                  value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  placeholder="Votre message"
-                  rows="5"
-                  required
-                />
-              </div>
-
-              {error && <div className="mb-4 text-red-600">{error}</div>}
-              {success && <div className="mb-4 text-green-600">{success}</div>}
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowNewMessage(false)}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
-                  disabled={sending}
-                >
-                  {sending ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <MdSend />
-                  )}
-                  Envoyer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  <div>
+                    <label
+                      htmlFor="recipient"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Destinataire
+                    </label>
+                    <select
+                      id="recipient"
+                      value={selectedRecipientId}
+                      onChange={(e) => setSelectedRecipientId(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                    >
+                      <option value="">
+                        -- Sélectionnez un destinataire --
+                      </option>
+                      {recipientOptions.map(
+                        (group, index) =>
+                          group.options.length > 0 && (
+                            <optgroup key={index} label={group.label}>
+                              {group.options.map((recipient) => (
+                                <option key={recipient.id} value={recipient.id}>
+                                  {recipient.firstName || ""}{" "}
+                                  {recipient.lastName || ""} ({recipient.email})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="subject"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Sujet
+                    </label>
+                    <input
+                      type="text"
+                      id="subject"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="messageContent"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Message
+                    </label>
+                    <textarea
+                      id="messageContent"
+                      rows={6}
+                      value={messageContent}
+                      onChange={(e) => setMessageContent(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="p-4 bg-gray-50 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeNewMessageModal}
+                    className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <MdSend className="mr-2 -ml-1" />
+                    {sending ? "Envoi en cours..." : "Envoyer"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

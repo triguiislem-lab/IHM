@@ -9,7 +9,7 @@ import { database } from '../../firebaseConfig';
 
 const auth = getAuth();
 
-export const registerUser = async (email, password, firstName, lastName, bio, phone, userType) => {
+export const registerUser = async (email, password, firstName, lastName, bio, phone) => {
 	// Create user with email and password
 	const userCredential = await createUserWithEmailAndPassword(
 		auth,
@@ -33,7 +33,7 @@ export const registerUser = async (email, password, firstName, lastName, bio, ph
 		email,
 		bio: bio || '',
 		phone: phone || '',
-		role: userType, // Using 'role' instead of 'userType' for standardization
+		role: 'student', // Default role set to 'student'
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
 	});

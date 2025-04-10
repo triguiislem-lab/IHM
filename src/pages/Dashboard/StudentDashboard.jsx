@@ -1,57 +1,72 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { getAuth } from "firebase/auth";
-import { fetchCompleteUserInfo } from "../../utils/firebaseUtils";
+import { useAuth } from "../../hooks/useAuth";
 import { getUserOverallProgress } from "../../utils/progressUtils";
 import { MdSchool, MdAssignment, MdBarChart } from "react-icons/md";
 import { Link } from "react-router-dom";
+import LoadingSpinner from "../../components/Common/LoadingSpinner";
 
 const StudentDashboard = () => {
-  const [userInfo, setUserInfo] = useState(null);
+  const { user, loading: authLoading, error: authError } = useAuth();
   const [progress, setProgress] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const auth = getAuth();
+  const [progressLoading, setProgressLoading] = useState(true);
+  const [progressError, setProgressError] = useState("");
 
   useEffect(() => {
-    const loadUserData = async () => {
+    const loadProgressData = async (userId) => {
       try {
-        setLoading(true);
-        setError("");
-
-        if (auth.currentUser) {
-          // Récupérer les informations de l'utilisateur
-          const info = await fetchCompleteUserInfo(auth.currentUser.uid);
-          setUserInfo(info);
-
-          // Récupérer la progression globale
-          const progressData = await getUserOverallProgress(auth.currentUser.uid);
-          setProgress(progressData);
-        }
+        setProgressLoading(true);
+        setProgressError("");
+        const progressData = await getUserOverallProgress(userId);
+        setProgress(progressData);
       } catch (error) {
-        console.error("Error loading user data:", error);
-        setError("Une erreur s'est produite lors du chargement des données.");
+        console.error("Error loading student progress data:", error);
+        setProgressError(
+          "Une erreur s&apos;est produite lors du chargement de la progression."
+        );
       } finally {
-        setLoading(false);
+        setProgressLoading(false);
       }
     };
 
-    loadUserData();
-  }, [auth.currentUser]);
+    if (user) {
+      loadProgressData(user.uid);
+    } else if (!authLoading) {
+      setProgressLoading(false);
+    }
+  }, [user, authLoading]);
 
-  if (loading) {
+  if (authLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (authError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        <div className="bg-red-100 p-4 rounded-lg text-red-700">
+          <p>Erreur d&apos;authentification: {authError}</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Veuillez vous connecter pour accéder au tableau de bord.</p>
+      </div>
+    );
+  }
+
+  if (progressLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (progressError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-red-100 p-4 rounded-lg text-red-700">
-          <p>{error}</p>
+          <p>{progressError}</p>
         </div>
       </div>
     );
@@ -66,17 +81,15 @@ const StudentDashboard = () => {
       >
         <h1 className="text-3xl font-bold mb-8">Tableau de bord étudiant</h1>
 
-        {/* Carte de bienvenue */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">
-            Bienvenue, {userInfo?.prenom || "Étudiant"}!
+            Bienvenue, {user?.prenom || user?.displayName || "Étudiant"}!
           </h2>
           <p className="text-gray-600">
             Voici un aperçu de votre progression et de vos activités récentes.
           </p>
         </div>
 
-        {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center gap-4">
@@ -121,12 +134,11 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        {/* Actions rapides */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Actions rapides</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link
-              to="/my-courses"
+              to="/student/courses"
               className="bg-secondary text-white p-4 rounded-lg text-center hover:bg-secondary/90 transition-colors duration-300"
             >
               Mes cours
@@ -138,24 +150,18 @@ const StudentDashboard = () => {
               Explorer les cours
             </Link>
             <Link
-              to="/profile"
+              to="/student/profile"
               className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300"
             >
               Mon profil
             </Link>
-            <Link
-              to="/edit-profile"
-              className="bg-purple-600 text-white p-4 rounded-lg text-center hover:bg-purple-700 transition-colors duration-300"
-            >
-              Modifier mon profil
-            </Link>
           </div>
         </div>
 
-        {/* Message d'encouragement */}
         <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
           <p className="text-blue-800 text-center">
-            Continuez à apprendre et à progresser ! N'hésitez pas à explorer de nouveaux cours pour enrichir vos connaissances.
+            Continuez à apprendre et à progresser ! N&apos;hésitez pas à
+            explorer de nouveaux cours pour enrichir vos connaissances.
           </p>
         </div>
       </motion.div>

@@ -106,6 +106,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
 
   const handleAddQuestion = (e) => {
     e.preventDefault();
+    console.log("handleAddQuestion called"); // Debug log
 
     // Vérifier que la question est valide
     if (!currentQuestion.question.trim()) {
@@ -119,45 +120,54 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       return;
     }
 
-    // Ajouter ou mettre à jour la question
-    const updatedQuestions = [...evaluationData.questions];
+    try {
+      // Ajouter ou mettre à jour la question
+      const updatedQuestions = [...evaluationData.questions];
 
-    if (editingQuestionIndex >= 0) {
-      // Mise à jour d'une question existante
-      updatedQuestions[editingQuestionIndex] = {
-        ...currentQuestion,
-        id:
-          updatedQuestions[editingQuestionIndex].id ||
-          `q_${Date.now()}_${Math.random().toString(36).substring(2)}`,
-      };
-    } else {
-      // Ajout d'une nouvelle question
-      updatedQuestions.push({
-        ...currentQuestion,
-        id: `q_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+      if (editingQuestionIndex >= 0) {
+        // Mise à jour d'une question existante
+        updatedQuestions[editingQuestionIndex] = {
+          ...currentQuestion,
+          id:
+            updatedQuestions[editingQuestionIndex].id ||
+            `q_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        };
+      } else {
+        // Ajout d'une nouvelle question
+        updatedQuestions.push({
+          ...currentQuestion,
+          id: `q_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+        });
+      }
+
+      // Mettre à jour l'évaluation avec la nouvelle question
+      setEvaluationData({
+        ...evaluationData,
+        questions: updatedQuestions,
       });
+
+      // Réinitialiser le formulaire de question
+      setCurrentQuestion({
+        question: "",
+        options: ["", "", "", ""],
+        correctAnswer: 0,
+        explanation: "",
+      });
+
+      setEditingQuestionIndex(-1);
+
+      // Fermer explicitement le popup
+      console.log("Closing popup"); // Debug log
+      setShowAddQuestion(false);
+
+      setSuccess("Question ajoutée avec succès");
+
+      // Effacer le message de succès après 3 secondes
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      console.error("Error adding question:", error);
+      setError(`Erreur: ${error.message}`);
     }
-
-    // Mettre à jour l'évaluation avec la nouvelle question
-    setEvaluationData({
-      ...evaluationData,
-      questions: updatedQuestions,
-    });
-
-    // Réinitialiser le formulaire de question
-    setCurrentQuestion({
-      question: "",
-      options: ["", "", "", ""],
-      correctAnswer: 0,
-      explanation: "",
-    });
-
-    setEditingQuestionIndex(-1);
-    setShowAddQuestion(false);
-    setSuccess("Question ajoutée avec succès");
-
-    // Effacer le message de succès après 3 secondes
-    setTimeout(() => setSuccess(""), 3000);
   };
 
   const handleEditQuestion = (index) => {
@@ -730,16 +740,39 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
 
       {/* Modal pour ajouter une évaluation */}
       {showAddEvaluation && selectedModule && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto py-10"
+          onClick={(e) => {
+            // Fermer le popup uniquement si l'utilisateur clique sur l'arrière-plan (pas sur le contenu)
+            if (e.target === e.currentTarget) {
+              setShowAddEvaluation(false);
+              setSelectedModule(null);
+            }
+          }}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 w-full max-w-md"
+            className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto relative my-auto"
+            onClick={(e) => e.stopPropagation()} // Empêcher la propagation du clic vers l'arrière-plan
           >
-            <h3 className="text-xl font-bold mb-4">
-              Ajouter une évaluation au module "
-              {selectedModule.title || "Module"}"
-            </h3>
+            <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-2 border-b">
+              <h3 className="text-xl font-bold">
+                Ajouter une évaluation au module "
+                {selectedModule.title || "Module"}"
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddEvaluation(false);
+                  setSelectedModule(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                aria-label="Fermer"
+              >
+                &times;
+              </button>
+            </div>
             <form onSubmit={handleAddEvaluation}>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2">
@@ -905,30 +938,45 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddEvaluation(false);
-                    setSelectedModule(null);
-                  }}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300"
-                >
-                  <MdCancel />
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <MdSave />
-                  )}
-                  Enregistrer
-                </button>
+              <div className="mt-6 pt-4 border-t sticky bottom-0 bg-white">
+                <div className="flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddEvaluation(false);
+                      setSelectedModule(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Fermer sans enregistrer
+                  </button>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddEvaluation(false);
+                        setSelectedModule(null);
+                      }}
+                      className="bg-gray-300 text-gray-800 px-6 py-3 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300 font-medium"
+                    >
+                      <MdCancel size={20} />
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-secondary text-white px-6 py-3 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300 font-medium"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      ) : (
+                        <MdSave size={20} />
+                      )}
+                      Enregistrer
+                    </button>
+                  </div>
+                </div>
               </div>
             </form>
           </motion.div>
@@ -937,15 +985,52 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
 
       {/* Modal pour ajouter une question */}
       {showAddQuestion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            // Fermer le popup uniquement si l'utilisateur clique sur l'arrière-plan (pas sur le contenu)
+            if (e.target === e.currentTarget) {
+              console.log("Background clicked"); // Debug log
+              setShowAddQuestion(false);
+              setEditingQuestionIndex(-1);
+              setCurrentQuestion({
+                question: "",
+                options: ["", "", "", ""],
+                correctAnswer: 0,
+                explanation: "",
+              });
+            }
+          }}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-lg p-6 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()} // Empêcher la propagation du clic vers l'arrière-plan
           >
-            <h3 className="text-xl font-bold mb-4">
-              {editingQuestionIndex >= 0 ? "Modifier" : "Ajouter"} une question
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">
+                {editingQuestionIndex >= 0 ? "Modifier" : "Ajouter"} une
+                question
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddQuestion(false);
+                  setEditingQuestionIndex(-1);
+                  setCurrentQuestion({
+                    question: "",
+                    options: ["", "", "", ""],
+                    correctAnswer: 0,
+                    explanation: "",
+                  });
+                }}
+                className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                aria-label="Fermer"
+              >
+                &times;
+              </button>
+            </div>
             <form onSubmit={handleAddQuestion}>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2">
@@ -1019,10 +1104,11 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                 />
               </div>
 
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-3 mt-6 border-t pt-4">
                 <button
                   type="button"
                   onClick={() => {
+                    console.log("Cancel button clicked"); // Debug log
                     setShowAddQuestion(false);
                     setEditingQuestionIndex(-1);
                     setCurrentQuestion({
@@ -1032,17 +1118,38 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                       explanation: "",
                     });
                   }}
-                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300"
+                  className="bg-gray-300 text-gray-800 px-6 py-3 rounded-md flex items-center gap-2 hover:bg-gray-400 transition-colors duration-300 font-medium"
                 >
-                  <MdCancel />
+                  <MdCancel size={20} />
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="bg-secondary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300"
+                  className="bg-secondary text-white px-6 py-3 rounded-md flex items-center gap-2 hover:bg-secondary/90 transition-colors duration-300 font-medium"
                 >
-                  <MdSave />
+                  <MdSave size={20} />
                   {editingQuestionIndex >= 0 ? "Mettre à jour" : "Ajouter"}
+                </button>
+              </div>
+
+              {/* Bouton de fermeture supplémentaire */}
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log("Extra close button clicked"); // Debug log
+                    setShowAddQuestion(false);
+                    setEditingQuestionIndex(-1);
+                    setCurrentQuestion({
+                      question: "",
+                      options: ["", "", "", ""],
+                      correctAnswer: 0,
+                      explanation: "",
+                    });
+                  }}
+                  className="text-gray-500 hover:text-gray-700 underline"
+                >
+                  Fermer sans enregistrer
                 </button>
               </div>
             </form>

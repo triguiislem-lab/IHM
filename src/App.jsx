@@ -1,7 +1,8 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, get, set } from "firebase/database";
+import { useAuth } from "./hooks/useAuth";
+import ProtectedRoute from "./components/Auth/ProtectedRoute";
+import LoadingSpinner from "./components/Common/LoadingSpinner";
 import Navbar from "./components/Navbar/Navbar";
 import HomePage from "./pages/HomePage";
 import CoursesPage from "./pages/CoursesPage";
@@ -24,243 +25,141 @@ import InstructorCourses from "./pages/Instructor/MyCourses";
 import InstructorCourseManagement from "./pages/Instructor/InstructorCourseManagement";
 import MessagesPage from "./pages/Messages/MessagesPage";
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
-  const [user, setUser] = React.useState(null);
-  const [userRole, setUserRole] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-
-      if (user) {
-        // Récupérer le rôle de l'utilisateur depuis la base de données
-        try {
-          const database = getDatabase();
-          // Utiliser le nouveau chemin standardisé
-          const userRef = ref(database, `elearning/users/${user.uid}`);
-          const snapshot = await get(userRef);
-
-          if (snapshot.exists()) {
-            const userData = snapshot.val();
-            // Vérifier à la fois role et userType pour la compatibilité
-            setUserRole(userData.role || userData.userType || "student");
-          } else {
-            // Si l'utilisateur n'est pas trouvé dans elearning/users, créer un profil par défaut
-            console.log(
-              `User ${user.uid} not found in elearning/users, creating default profile`
-            );
-
-            // Créer un profil utilisateur par défaut dans elearning/users
-            const defaultUserData = {
-              id: user.uid,
-              firstName: user.displayName ? user.displayName.split(" ")[0] : "",
-              lastName: user.displayName
-                ? user.displayName.split(" ").slice(1).join(" ")
-                : "",
-              email: user.email,
-              role: "student", // Rôle par défaut
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-
-            try {
-              // Enregistrer le profil par défaut
-              await set(userRef, defaultUserData);
-              console.log(
-                `Created default profile for user ${user.uid} in elearning/users`
-              );
-              setUserRole("student");
-            } catch (error) {
-              console.error(
-                `Error creating default profile for user ${user.uid}:`,
-                error
-              );
-              setUserRole("student"); // Rôle par défaut en cas d'erreur
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setUserRole("student"); // Rôle par défaut en cas d'erreur
-        }
-      }
-
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
-
-  // Vérifier si l'utilisateur a le rôle requis
-  if (
-    allowedRoles &&
-    allowedRoles.length > 0 &&
-    !allowedRoles.includes(userRole)
-  ) {
-    return <Navigate to="/" />;
-  }
-
-  return children;
-};
+// Composants de redirection
+import ProfileRedirect from "./components/Redirects/ProfileRedirect";
+import EditProfileRedirect from "./components/Redirects/EditProfileRedirect";
+import MessagesRedirect from "./components/Redirects/MessagesRedirect";
 
 const App = () => {
+  const { loading, getDashboardPath } = useAuth();
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <BrowserRouter>
-      <main className="min-h-screen">
+      <div className="flex flex-col min-h-screen">
         <Navbar />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/courses" element={<CoursesPage />} />
-          <Route path="/course/:id" element={<CourseDetails />} />
-          <Route path="/course/:id/module/:moduleId" element={<ModulePage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/my-courses" element={<MyCourses />} />
-          <Route path="/edit-profile" element={<EditProfile />} />
+        <main className="flex-grow">
+          <Routes>
+            {/* Routes publiques */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/course/:id" element={<CourseDetails />} />
+            <Route
+              path="/course/:id/module/:moduleId"
+              element={<ModulePage />}
+            />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/dashboard/student"
-            element={
-              <ProtectedRoute allowedRoles={["student", "apprenant"]}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/instructor"
-            element={
-              <ProtectedRoute allowedRoles={["instructor", "formateur"]}>
-                <InstructorDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dashboard/admin"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/database-cleanup"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
-                <DatabaseCleanup />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/database-migration"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
-                <DatabaseMigration />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/specialites"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "administrateur"]}>
-                <SpecialitesManager />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/course/new"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  "admin",
-                  "administrateur",
-                  "instructor",
-                  "formateur",
-                ]}
-              >
-                <CourseForm />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/course/edit/:id"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  "admin",
-                  "administrateur",
-                  "instructor",
-                  "formateur",
-                ]}
-              >
-                <CourseForm />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/instructor/courses"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  "admin",
-                  "administrateur",
-                  "instructor",
-                  "formateur",
-                ]}
-              >
-                <InstructorCourses />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/instructor/course/:id"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  "admin",
-                  "administrateur",
-                  "instructor",
-                  "formateur",
-                ]}
-              >
-                <InstructorCourseManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/messages"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  "admin",
-                  "administrateur",
-                  "formateur",
-                  "instructor",
-                  "student",
-                  "apprenant",
-                ]}
-              >
-                <MessagesPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+            {/* Routes de redirection selon le rôle */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileRedirect />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/edit-profile"
+              element={
+                <ProtectedRoute>
+                  <EditProfileRedirect />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <MessagesRedirect />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Routes protégées par rôle */}
+            {/* Routes pour les étudiants */}
+            <Route
+              path="/student/*"
+              element={
+                <ProtectedRoute allowedRoles={["student"]}>
+                  <Routes>
+                    <Route path="dashboard" element={<StudentDashboard />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="enrollments" element={<MyCourses />} />
+                    <Route path="my-courses" element={<MyCourses />} />{" "}
+                    {/* Pour compatibilité */}
+                    <Route path="edit-profile" element={<EditProfile />} />
+                    <Route path="messages" element={<MessagesPage />} />
+                  </Routes>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Routes pour les instructeurs */}
+            <Route
+              path="/instructor/*"
+              element={
+                <ProtectedRoute allowedRoles={["instructor"]}>
+                  <Routes>
+                    <Route path="dashboard" element={<InstructorDashboard />} />
+                    <Route path="courses" element={<InstructorCourses />} />
+                    <Route
+                      path="course-management"
+                      element={<InstructorCourseManagement />}
+                    />
+                    <Route path="course-form" element={<CourseForm />} />
+                    <Route path="course-form/:id" element={<CourseForm />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="edit-profile" element={<EditProfile />} />
+                    <Route path="messages" element={<MessagesPage />} />
+                  </Routes>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Routes pour les administrateurs */}
+            <Route
+              path="/admin/*"
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <Routes>
+                    <Route path="dashboard" element={<AdminDashboard />} />
+                    <Route path="users" element={<AdminDashboard />} />{" "}
+                    {/* À remplacer par UsersManagement */}
+                    <Route path="courses" element={<AdminDashboard />} />{" "}
+                    {/* À remplacer par CoursesManagement */}
+                    <Route
+                      path="database-cleanup"
+                      element={<DatabaseCleanup />}
+                    />
+                    <Route
+                      path="database-migration"
+                      element={<DatabaseMigration />}
+                    />
+                    <Route
+                      path="specialites"
+                      element={<SpecialitesManager />}
+                    />
+                    <Route path="course-form" element={<CourseForm />} />
+                    <Route path="course-form/:id" element={<CourseForm />} />
+                    <Route path="messages" element={<MessagesPage />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route path="edit-profile" element={<EditProfile />} />
+                  </Routes>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Redirection par défaut */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
         <Footer />
-      </main>
+      </div>
     </BrowserRouter>
   );
 };

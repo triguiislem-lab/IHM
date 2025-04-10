@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getAuth } from 'firebase/auth';
-import { getDatabase, ref, get } from 'firebase/database';
-import { ArrowLeft } from 'lucide-react';
-import ModuleContent from '../components/CourseModules/ModuleContent';
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { getAuth } from "firebase/auth";
+import { getDatabase, ref, get } from "firebase/database";
+import { ArrowLeft } from "lucide-react";
+import ModuleContent from "../components/CourseModules/ModuleContent";
 
 const ModulePage = () => {
   const { id: courseId, moduleId } = useParams();
@@ -11,7 +11,7 @@ const ModulePage = () => {
   const [course, setCourse] = useState(null);
   const [module, setModule] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isEnrolled, setIsEnrolled] = useState(false);
 
   const auth = getAuth();
@@ -20,23 +20,29 @@ const ModulePage = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (!courseId || !moduleId) {
-        setError('Identifiants de cours ou de module manquants');
+        setError("Identifiants de cours ou de module manquants");
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        setError('');
+        setError("");
 
-        // Récupérer les informations du cours
-        const courseRef = ref(database, `Elearning/Cours/${courseId}`);
-        const courseSnapshot = await get(courseRef);
+        // Récupérer les informations du cours (nouvelle structure)
+        const courseRef = ref(database, `elearning/courses/${courseId}`);
+        let courseSnapshot = await get(courseRef);
 
+        // Si le cours n'est pas trouvé dans la nouvelle structure, essayer l'ancienne structure
         if (!courseSnapshot.exists()) {
-          setError('Cours non trouvé');
-          setLoading(false);
-          return;
+          const legacyCourseRef = ref(database, `Elearning/Cours/${courseId}`);
+          courseSnapshot = await get(legacyCourseRef);
+
+          if (!courseSnapshot.exists()) {
+            setError("Cours non trouvé");
+            setLoading(false);
+            return;
+          }
         }
 
         const courseData = courseSnapshot.val();
@@ -52,7 +58,7 @@ const ModulePage = () => {
             if (!isNaN(moduleId)) {
               moduleData = courseData.modules[parseInt(moduleId)];
             } else {
-              moduleData = courseData.modules.find(m => m.id === moduleId);
+              moduleData = courseData.modules.find((m) => m.id === moduleId);
             }
           } else {
             // Si c'est un objet, chercher par clé
@@ -61,7 +67,7 @@ const ModulePage = () => {
         }
 
         if (!moduleData) {
-          setError('Module non trouvé');
+          setError("Module non trouvé");
           setLoading(false);
           return;
         }
@@ -70,22 +76,74 @@ const ModulePage = () => {
         moduleData = {
           ...moduleData,
           id: moduleId,
-          courseId: courseId
+          courseId: courseId,
         };
 
         setModule(moduleData);
 
-        // Vérifier si l'utilisateur est inscrit au cours
+        // Vérifier si l'utilisateur est inscrit au cours (vérification complète)
         if (auth.currentUser) {
-          const enrollmentRef = ref(database, `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`);
-          const enrollmentSnapshot = await get(enrollmentRef);
-          setIsEnrolled(enrollmentSnapshot.exists());
+          // Chemins à vérifier pour l'inscription
+          const enrollmentPaths = [
+            `elearning/enrollments/${auth.currentUser.uid}/${courseId}`,
+            `elearning/enrollments/byCourse/${courseId}/${auth.currentUser.uid}`,
+            `elearning/enrollments/byUser/${auth.currentUser.uid}/${courseId}`,
+            `elearning/progress/${auth.currentUser.uid}/${courseId}`,
+            `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`,
+            `Elearning/Enrollments/byUser/${auth.currentUser.uid}/${courseId}`,
+            `Elearning/Cours/${courseId}/enrollments/${auth.currentUser.uid}`,
+            `Elearning/Progression/${auth.currentUser.uid}/${courseId}`,
+          ];
+
+          // Vérifier chaque chemin
+          let isUserEnrolled = false;
+          for (const path of enrollmentPaths) {
+            try {
+              console.log(`Checking enrollment path: ${path}`);
+              const pathRef = ref(database, path);
+              const snapshot = await get(pathRef);
+
+              if (snapshot.exists()) {
+                console.log(
+                  `User is enrolled in course ${courseId} (found in ${path})`
+                );
+                isUserEnrolled = true;
+                break;
+              }
+            } catch (error) {
+              console.error(`Error checking enrollment in ${path}:`, error);
+            }
+          }
+
+          // Vérifier également dans le stockage local
+          const enrolledInLocalStorage =
+            localStorage.getItem(
+              `enrolled_${auth.currentUser.uid}_${courseId}`
+            ) === "true";
+          if (enrolledInLocalStorage) {
+            console.log(
+              `User is enrolled in course ${courseId} (found in localStorage)`
+            );
+            isUserEnrolled = true;
+          }
+
+          setIsEnrolled(isUserEnrolled);
+
+          // Si l'utilisateur est inscrit, stocker cette information dans le stockage local
+          if (isUserEnrolled) {
+            localStorage.setItem(
+              `enrolled_${auth.currentUser.uid}_${courseId}`,
+              "true"
+            );
+          }
         }
 
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching data:', error);
-        setError(`Erreur lors de la récupération des données: ${error.message}`);
+        console.error("Error fetching data:", error);
+        setError(
+          `Erreur lors de la récupération des données: ${error.message}`
+        );
         setLoading(false);
       }
     };
@@ -143,7 +201,8 @@ const ModulePage = () => {
             {module.title || module.titre || `Module ${moduleId}`}
           </h1>
           <p className="text-gray-600 mb-6">
-            {module.description || 'Aucune description disponible pour ce module.'}
+            {module.description ||
+              "Aucune description disponible pour ce module."}
           </p>
 
           {!isEnrolled && (
@@ -151,7 +210,8 @@ const ModulePage = () => {
               <div className="flex">
                 <div className="ml-3">
                   <p className="text-sm text-yellow-700">
-                    Vous n'êtes pas inscrit à ce cours. Certaines fonctionnalités peuvent être limitées.
+                    Vous n'êtes pas inscrit à ce cours. Certaines
+                    fonctionnalités peuvent être limitées.
                   </p>
                   <Link
                     to={`/course/${courseId}`}

@@ -1,40 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { getAuth } from 'firebase/auth';
-import { motion } from 'framer-motion';
-import { 
-  MdEdit, 
-  MdDelete, 
-  MdAdd, 
-  MdSchool, 
-  MdBook, 
-  MdPeople, 
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { getAuth } from "firebase/auth";
+import { motion } from "framer-motion";
+import {
+  MdEdit,
+  MdDelete,
+  MdAdd,
+  MdSchool,
+  MdBook,
+  MdPeople,
   MdAccessTime,
-  MdArrowBack
-} from 'react-icons/md';
-import { fetchInstructorCourses } from '../../utils/moduleUtils';
+  MdArrowBack,
+} from "react-icons/md";
+import { fetchInstructorCourses } from "../../utils/moduleUtils";
 
 const InstructorCourses = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const auth = getAuth();
 
   useEffect(() => {
     const loadCourses = async () => {
       if (!auth.currentUser) {
-        navigate('/login');
+        navigate("/login");
         return;
       }
 
       try {
         setLoading(true);
-        const instructorCourses = await fetchInstructorCourses(auth.currentUser.uid);
+        const instructorCourses = await fetchInstructorCourses(
+          auth.currentUser.uid
+        );
         setCourses(instructorCourses);
       } catch (error) {
-        console.error('Error loading instructor courses:', error);
-        setError('Erreur lors du chargement des cours. Veuillez réessayer.');
+        console.error("Error loading instructor courses:", error);
+        setError("Erreur lors du chargement des cours. Veuillez réessayer.");
       } finally {
         setLoading(false);
       }
@@ -58,7 +60,9 @@ const InstructorCourses = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Mes cours</h1>
-          <p className="text-gray-600">Gérez vos cours, modules et évaluations</p>
+          <p className="text-gray-600">
+            Gérez vos cours, modules et évaluations
+          </p>
         </div>
         <div className="flex gap-4">
           <button
@@ -69,7 +73,7 @@ const InstructorCourses = () => {
             Retour
           </button>
           <button
-            onClick={() => navigate('/instructor/course/new')}
+            onClick={() => navigate("/instructor/course-form")}
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary/90 transition-colors duration-300"
           >
             <MdAdd />
@@ -89,10 +93,11 @@ const InstructorCourses = () => {
           <MdSchool className="text-6xl text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Aucun cours trouvé</h2>
           <p className="text-gray-600 mb-6">
-            Vous n'avez pas encore créé de cours. Commencez par en créer un nouveau.
+            Vous n'avez pas encore créé de cours. Commencez par en créer un
+            nouveau.
           </p>
           <button
-            onClick={() => navigate('/instructor/course/new')}
+            onClick={() => navigate("/instructor/course-form")}
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary/90 transition-colors duration-300 mx-auto"
           >
             <MdAdd />
@@ -122,19 +127,19 @@ const InstructorCourses = () => {
                 )}
                 <div className="absolute top-2 right-2 flex gap-2">
                   <Link
-                    to={`/instructor/course/${course.id}/edit`}
+                    to={`/instructor/course-form/${course.id}`}
                     className="p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors duration-300"
                   >
                     <MdEdit className="text-gray-700" />
                   </Link>
                 </div>
               </div>
-              
+
               <div className="p-4">
                 <h2 className="text-lg font-semibold mb-2 truncate">
-                  {course.title || course.titre || 'Cours sans titre'}
+                  {course.title || course.titre || "Cours sans titre"}
                 </h2>
-                
+
                 <div className="flex items-center text-sm text-gray-600 mb-3">
                   <MdPeople className="mr-1" />
                   <span>{course.students || 0} étudiants</span>
@@ -142,11 +147,11 @@ const InstructorCourses = () => {
                   <MdAccessTime className="mr-1" />
                   <span>{course.modules?.length || 0} modules</span>
                 </div>
-                
+
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {course.description || 'Aucune description disponible.'}
+                  {course.description || "Aucune description disponible."}
                 </p>
-                
+
                 <div className="flex justify-between">
                   <Link
                     to={`/instructor/course/${course.id}`}
@@ -154,7 +159,7 @@ const InstructorCourses = () => {
                   >
                     <span>Gérer</span>
                   </Link>
-                  
+
                   <Link
                     to={`/course/${course.id}`}
                     className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors duration-300"

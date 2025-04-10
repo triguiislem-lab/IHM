@@ -1,35 +1,39 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   fetchCourseById,
   fetchSpecialitesFromDatabase,
   fetchDisciplinesFromDatabase,
-  fetchInstructorById,
-  fetchCompleteUserInfo,
+  // fetchInstructorById, // Likely no longer needed directly
+  // fetchCompleteUserInfo, // Replaced by useAuth
 } from "../../utils/firebaseUtils";
 import { database } from "../../../firebaseConfig";
 import { ref, set } from "firebase/database";
-import { getAuth } from "firebase/auth";
+// import { getAuth } from "firebase/auth"; // Replaced by useAuth
+import { useAuth } from "../../hooks/useAuth"; // Import useAuth
 import ModuleManagerCreation from "../../components/CourseModules/ModuleManagerCreation";
+import LoadingSpinner from "../../components/Common/LoadingSpinner"; // Import LoadingSpinner
+
 // Fonction pour générer un ID unique sans dépendre de la bibliothèque uuid
 const generateUniqueId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
 
 const CourseForm = () => {
-  const { id } = useParams();
+  const { id: courseIdParam } = useParams(); // Rename id to avoid conflict
   const navigate = useNavigate();
-  const auth = getAuth();
-  const isEditMode = !!id;
+  const { user, role, loading: authLoading } = useAuth(); // Use the hook
+  const isEditMode = !!courseIdParam;
 
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Renamed component loading state
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [permissionError, setPermissionError] = useState(""); // Specific error for permissions
   const [success, setSuccess] = useState("");
   const [specialites, setSpecialites] = useState([]);
   const [disciplines, setDisciplines] = useState([]);
   const [filteredDisciplines, setFilteredDisciplines] = useState([]);
-  const [userInfo, setUserInfo] = useState(null);
+  // const [userInfo, setUserInfo] = useState(null); // Removed, use user & role from useAuth
 
   const [courseData, setCourseData] = useState({
     title: "",
@@ -41,7 +45,6 @@ const CourseForm = () => {
     specialiteId: "",
     disciplineId: "",
     instructorId: "",
-    role: "",
   });
 
   // État pour les modules du cours
@@ -51,68 +54,63 @@ const CourseForm = () => {
   const [activeTab, setActiveTab] = useState("info"); // "info" ou "modules"
 
   useEffect(() => {
-    const loadData = async () => {
+    // Ensure user is authenticated and role is loaded before proceeding
+    if (authLoading) {
+      return; // Wait for auth state to resolve
+    }
+
+    // If no user or role, likely redirecting via ProtectedRoute, but handle defensively
+    if (!user || !role) {
+      setPermissionError("Authentification requise.");
+      setLoadingData(false);
+      // Optional: Redirect after a delay, but ProtectedRoute should handle this
+      // setTimeout(() => navigate('/login'), 1000);
+      return;
+    }
+
+    // Basic role check (Admin or Instructor)
+    const isAdmin = role === "admin";
+    const isInstructor = role === "instructor";
+
+    if (!isAdmin && !isInstructor) {
+      setPermissionError(
+        "Vous n'avez pas les permissions nécessaires pour accéder à cette page."
+      );
+      setLoadingData(false);
+      // Optional: Redirect or show message
+      // setTimeout(() => navigate(getDashboardPath(role)), 1000);
+      return;
+    }
+
+    // Now load course-specific data
+    const loadCourseData = async () => {
       try {
-        setLoading(true);
+        setLoadingData(true);
+        setPermissionError(""); // Clear previous errors
+        setError("");
 
-        // Vérifier si l'utilisateur est connecté
-        if (!auth.currentUser) {
-          setError("Vous devez être connecté pour accéder à cette page");
-          setTimeout(() => {
-            navigate("/login");
-          }, 2000);
-          return;
-        }
-
-        // Récupérer les informations de l'utilisateur
-        const userInfoData = await fetchCompleteUserInfo(auth.currentUser.uid);
-        setUserInfo(userInfoData);
-
-        // Vérifier si l'utilisateur est un instructeur ou un admin
-        const isInstructor =
-          userInfoData?.role === "instructor" ||
-          userInfoData?.role === "formateur" ||
-          userInfoData?.userType === "formateur";
-
-        const isAdmin =
-          userInfoData?.role === "admin" ||
-          userInfoData?.userType === "administrateur";
-
-        if (!isInstructor && !isAdmin) {
-          setError(
-            "Vous n'avez pas les droits pour créer ou modifier un cours"
-          );
-          setTimeout(() => {
-            navigate("/dashboard");
-          }, 2000);
-          return;
-        }
-
-        // Charger les spécialités
-        const specialitesData = await fetchSpecialitesFromDatabase();
+        // Fetch Specialites and Disciplines (needed for both create and edit)
+        const [specialitesData, disciplinesData] = await Promise.all([
+          fetchSpecialitesFromDatabase(),
+          fetchDisciplinesFromDatabase(),
+        ]);
         setSpecialites(specialitesData);
-
-        // Charger les disciplines
-        const disciplinesData = await fetchDisciplinesFromDatabase();
         setDisciplines(disciplinesData);
 
-        // Si on est en mode édition, charger les données du cours
+        // If Edit Mode: Fetch course data and perform specific permission check
         if (isEditMode) {
-          const course = await fetchCourseById(id);
+          const course = await fetchCourseById(courseIdParam);
           if (course) {
-            // Vérifier si l'utilisateur est l'instructeur du cours ou un admin
-            const isAdmin =
-              userInfoData?.role === "admin" ||
-              userInfoData?.userType === "administrateur";
-
-            if (course.instructorId !== auth.currentUser.uid && !isAdmin) {
-              setError("Vous n'avez pas les droits pour modifier ce cours");
-              setTimeout(() => {
-                navigate("/dashboard");
-              }, 2000);
-              return;
+            // Edit Permission Check: Must be Admin OR the course's instructor
+            if (course.instructorId !== user.uid && !isAdmin) {
+              setPermissionError(
+                "Vous n'avez pas les permissions pour modifier ce cours."
+              );
+              setLoadingData(false);
+              return; // Stop loading if no permission
             }
 
+            // Set form data from fetched course
             setCourseData({
               title: course.title || course.titre || "",
               description: course.description || "",
@@ -122,11 +120,10 @@ const CourseForm = () => {
               price: course.price || 0,
               specialiteId: course.specialiteId || "",
               disciplineId: course.disciplineId || "",
-              instructorId: course.instructorId || auth.currentUser?.uid || "",
-              role: userInfoData?.role || "instructor",
+              instructorId: course.instructorId || user.uid, // Ensure instructorId is set
             });
 
-            // Filtrer les disciplines en fonction de la spécialité sélectionnée
+            // Filter disciplines based on fetched speciality
             if (course.specialiteId) {
               const filtered = disciplinesData.filter(
                 (discipline) => discipline.specialiteId === course.specialiteId
@@ -134,723 +131,494 @@ const CourseForm = () => {
               setFilteredDisciplines(filtered);
             }
 
-            // Charger les modules du cours s'ils existent
+            // Load modules if they exist
             if (course.modules) {
-              // Convertir les modules de format objet à tableau
               const modulesArray = Object.entries(course.modules).map(
-                ([moduleId, moduleData]) => {
-                  // Convertir les évaluations de format objet à tableau si elles existent
-                  let evaluations = {};
-                  if (moduleData.evaluations) {
-                    evaluations = moduleData.evaluations;
-                  }
-
-                  return {
-                    ...moduleData,
-                    id: moduleId,
-                    evaluations: evaluations,
-                  };
-                }
+                ([moduleId, moduleData]) => ({
+                  ...moduleData,
+                  id: moduleId,
+                  evaluations: moduleData.evaluations || {},
+                })
               );
-
-              // Trier les modules par ordre
               const sortedModules = modulesArray.sort(
                 (a, b) => (a.order || 0) - (b.order || 0)
               );
               setCourseModules(sortedModules);
             }
           } else {
-            setError("Cours non trouvé");
+            setError("Cours non trouvé.");
           }
         } else {
-          // En mode création, définir l'instructeur actuel comme instructeur par défaut
+          // Create Mode: Set current user as default instructor
           setCourseData((prev) => ({
             ...prev,
-            instructorId: auth.currentUser?.uid || "",
-            role: userInfoData?.role || "instructor",
+            instructorId: user.uid,
           }));
         }
-      } catch (error) {
-        console.error("Error loading data:", error);
-        setError("Erreur lors du chargement des données");
+      } catch (err) {
+        console.error("Error loading course data:", err);
+        setError("Erreur lors du chargement des données du cours.");
       } finally {
-        setLoading(false);
+        setLoadingData(false);
       }
     };
 
-    loadData();
-  }, [id, isEditMode, auth.currentUser, navigate]);
+    loadCourseData();
+  }, [courseIdParam, isEditMode, user, role, authLoading, navigate]); // Add dependencies
 
-  // Mettre à jour les disciplines filtrées lorsque la spécialité change
+  // Effect to filter disciplines when speciality changes (remains the same)
   useEffect(() => {
     if (courseData.specialiteId) {
       const filtered = disciplines.filter(
         (discipline) => discipline.specialiteId === courseData.specialiteId
       );
       setFilteredDisciplines(filtered);
-
-      // Réinitialiser la discipline si elle n'appartient pas à la spécialité sélectionnée
-      if (courseData.disciplineId) {
-        const disciplineExists = filtered.some(
-          (d) => d.id === courseData.disciplineId
-        );
-        if (!disciplineExists) {
-          setCourseData((prev) => ({ ...prev, disciplineId: "" }));
-        }
+      if (
+        courseData.disciplineId &&
+        !filtered.some((d) => d.id === courseData.disciplineId)
+      ) {
+        setCourseData((prev) => ({ ...prev, disciplineId: "" }));
       }
     } else {
       setFilteredDisciplines([]);
       setCourseData((prev) => ({ ...prev, disciplineId: "" }));
     }
-  }, [courseData.specialiteId, disciplines]);
+  }, [courseData.specialiteId, courseData.disciplineId, disciplines]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setCourseData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // handleSubmit logic remains largely the same, but uses user.uid implicitly via courseData.instructorId
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Ensure user is still valid before saving
+    if (!user || !role) {
+      setError("Erreur d'authentification. Impossible de sauvegarder.");
+      return;
+    }
+
+    // Permission check before saving (Admin or Instructor who owns the course)
+    const isAdmin = role === "admin";
+    const isOwnerInstructor =
+      role === "instructor" && courseData.instructorId === user.uid;
+
+    // In edit mode, only admin or owner instructor can save
+    if (isEditMode && !isAdmin && !isOwnerInstructor) {
+      setError(
+        "Vous n'avez pas les droits pour sauvegarder les modifications de ce cours."
+      );
+      return;
+    }
+    // In create mode, only admin or instructor can save (already checked initially, but double-check)
+    if (!isEditMode && role !== "admin" && role !== "instructor") {
+      setError("Vous n'avez pas les droits pour créer un cours.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
 
     try {
-      // Valider les données
+      // Validation
       if (!courseData.title || courseData.title.trim().length < 5) {
         throw new Error(
           "Le titre est obligatoire et doit contenir au moins 5 caractères"
         );
       }
-
       if (
         !courseData.description ||
-        courseData.description.trim().length < 20
+        courseData.description.trim().length < 10
       ) {
         throw new Error(
-          "La description est obligatoire et doit contenir au moins 20 caractères"
+          "La description est obligatoire et doit contenir au moins 10 caractères"
         );
       }
-
+      if (!courseData.duration) {
+        throw new Error("La durée estimée est obligatoire");
+      }
+      if (courseData.price < 0) {
+        throw new Error("Le prix ne peut pas être négatif");
+      }
       if (!courseData.specialiteId) {
-        throw new Error("La spécialité est obligatoire");
+        throw new Error("Veuillez sélectionner une spécialité");
       }
-
       if (!courseData.disciplineId) {
-        throw new Error("La discipline est obligatoire");
+        throw new Error("Veuillez sélectionner une discipline");
       }
 
-      if (!courseData.level) {
-        throw new Error("Le niveau est obligatoire");
-      }
+      const courseId = isEditMode ? courseIdParam : generateUniqueId();
 
-      if (
-        !courseData.duration ||
-        isNaN(courseData.duration) ||
-        parseInt(courseData.duration) <= 0
-      ) {
-        throw new Error("La durée doit être un nombre positif");
-      }
+      // Convert modules array back to object for Firebase
+      const modulesObject = courseModules.reduce((acc, module, index) => {
+        // Ensure module has an id, generate if missing (shouldn't happen with ModuleManagerCreation)
+        const moduleId = module.id || generateUniqueId();
+        acc[moduleId] = {
+          ...module,
+          order: index, // Ensure order is set based on array index
+          id: undefined, // Remove temporary array ID before saving
+        };
+        // Remove potential temporary 'evaluationsArray' if it exists from ModuleManagerCreation
+        delete acc[moduleId].evaluationsArray;
+        // Ensure evaluations are stored correctly (assuming they are an object)
+        acc[moduleId].evaluations = module.evaluations || {};
 
-      // Préparer les données du cours
-      const courseId = isEditMode ? id : generateUniqueId();
-      const timestamp = new Date().toISOString();
+        return acc;
+      }, {});
 
-      // Préparer les modules si présents
-      let modulesData = {};
-      if (courseModules.length > 0) {
-        courseModules.forEach((module) => {
-          // Créer un ID permanent pour le module
-          const moduleId = module.id.startsWith("temp_")
-            ? `m${Date.now()}_${Math.random().toString(36).substring(2)}`
-            : module.id;
-
-          // Préparer les évaluations si présentes
-          let evaluationsData = {};
-          if (
-            module.evaluations &&
-            Object.keys(module.evaluations).length > 0
-          ) {
-            Object.entries(module.evaluations).forEach(
-              ([tempEvalId, evaluation]) => {
-                // Créer un ID permanent pour l'évaluation
-                const evalId = tempEvalId.startsWith("temp_")
-                  ? `e${Date.now()}_${Math.random().toString(36).substring(2)}`
-                  : tempEvalId;
-
-                // S'assurer qu'aucune valeur n'est undefined
-                const cleanEvaluation = {};
-                Object.entries(evaluation).forEach(([key, value]) => {
-                  cleanEvaluation[key] = value === undefined ? null : value;
-                });
-
-                evaluationsData[evalId] = {
-                  ...cleanEvaluation,
-                  id: evalId,
-                  moduleId: moduleId,
-                  date: cleanEvaluation.date || new Date().toISOString(),
-                };
-              }
-            );
-          }
-
-          // Préparer les ressources si présentes
-          let resourcesData = [];
-          if (module.resources && module.resources.length > 0) {
-            resourcesData = module.resources.map((resource) => {
-              // S'assurer qu'aucune valeur n'est undefined
-              const cleanResource = {};
-              Object.entries(resource).forEach(([key, value]) => {
-                cleanResource[key] = value === undefined ? null : value;
-              });
-
-              return {
-                ...cleanResource,
-                id: resource.id,
-                moduleId: moduleId,
-                createdAt: resource.createdAt || new Date().toISOString(),
-              };
-            });
-          }
-
-          // Nettoyer le module de toute valeur undefined
-          const cleanModule = {};
-          Object.entries(module).forEach(([key, value]) => {
-            // Ignorer les propriétés evaluations et resources car on les traite séparément
-            if (key !== "evaluations" && key !== "resources") {
-              cleanModule[key] = value === undefined ? null : value;
-            }
-          });
-
-          // Ajouter le module avec ses évaluations et ressources
-          modulesData[moduleId] = {
-            ...cleanModule,
-            id: moduleId,
-            courseId: courseId,
-            evaluations: evaluationsData,
-            resources: resourcesData,
-            createdAt: cleanModule.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            status: cleanModule.status || "active",
-          };
-        });
-      }
-
-      // Nettoyer les données du cours de toute valeur undefined
-      const cleanCourseData = {};
-      Object.entries(courseData).forEach(([key, value]) => {
-        cleanCourseData[key] = value === undefined ? null : value;
-      });
-
-      const courseToSave = {
-        ...cleanCourseData,
+      const dataToSave = {
+        ...courseData,
         id: courseId,
-        updatedAt: timestamp,
+        // Ensure instructorId is correctly set from state (already updated)
+        instructorId: courseData.instructorId || user.uid,
+        modules: modulesObject,
+        // Add/update timestamps
         createdAt: isEditMode
-          ? cleanCourseData.createdAt || timestamp
-          : timestamp,
-        modules: modulesData,
+          ? courseData.createdAt || new Date().toISOString()
+          : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      // Sauvegarder le cours dans la base de données
+      // Remove legacy fields before saving if they sneaked in
+      delete dataToSave.titre;
+      delete dataToSave.duree;
+
       const courseRef = ref(database, `elearning/courses/${courseId}`);
-      await set(courseRef, courseToSave);
+      await set(courseRef, dataToSave);
 
-      // Ajouter une référence du cours dans la liste des cours de l'instructeur
-      const instructorCoursesRef = ref(
-        database,
-        `elearning/users/${courseData.instructorId}/courses/${courseId}`
-      );
-      await set(instructorCoursesRef, {
-        id: courseId,
-        title: courseData.title,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        role: "instructor",
-      });
-
-      // Ajouter le cours à la liste des cours par spécialité et discipline
-      if (courseData.specialiteId) {
-        const specialiteCoursesRef = ref(
-          database,
-          `elearning/specialites/${courseData.specialiteId}/courses/${courseId}`
-        );
-        await set(specialiteCoursesRef, {
-          id: courseId,
-          title: courseData.title,
-          updatedAt: timestamp,
-        });
-      }
-
-      if (courseData.disciplineId) {
-        const disciplineCoursesRef = ref(
-          database,
-          `elearning/disciplines/${courseData.disciplineId}/courses/${courseId}`
-        );
-        await set(disciplineCoursesRef, {
-          id: courseId,
-          title: courseData.title,
-          updatedAt: timestamp,
-        });
-      }
-
-      setSuccess(
-        isEditMode ? "Cours mis à jour avec succès" : "Cours créé avec succès"
-      );
-
-      // Vérifier si le formulaire a été soumis depuis le bouton "Continuer vers les modules"
-      const isContinueToModules =
-        e.target.getAttribute("data-action") === "continue-to-modules";
-
-      if (isContinueToModules) {
-        // Passer à l'onglet des modules
-        setActiveTab("modules");
-      } else {
-        // Déterminer le rôle de l'utilisateur pour la redirection
-        const userRole = courseData.role || userInfo?.role || "instructor";
-
-        // Rediriger vers le tableau de bord approprié selon le rôle
-        setTimeout(() => {
-          switch (userRole) {
-            case "admin":
-              navigate(`/admin/dashboard`);
-              break;
-            case "instructor":
-              navigate(`/instructor/dashboard`);
-              break;
-            default:
-              navigate(`/instructor/courses`);
-          }
-        }, 2000);
-      }
-    } catch (error) {
-      console.error("Error saving course:", error);
-      setError(`Erreur: ${error.message}`);
+      setSuccess(`Cours ${isEditMode ? "mis à jour" : "créé"} avec succès!`);
+      setTimeout(() => {
+        navigate(`/courses/${courseId}`); // Redirect to course page
+      }, 1500);
+    } catch (err) {
+      console.error("Error saving course:", err);
+      setError(`Erreur lors de la sauvegarde: ${err.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
+  // Render Loading Spinner if auth is loading or initial data is loading
+  if (authLoading || loadingData) {
+    return <LoadingSpinner />;
+  }
+
+  // Render Permission Error message if exists
+  if (permissionError) {
     return (
-      <div className="container py-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
-        </div>
+      <div className="container mx-auto px-4 py-8 text-center text-red-600">
+        <p>{permissionError}</p>
+        <Link
+          to="/"
+          className="text-blue-500 hover:underline mt-4 inline-block"
+        >
+          Retour à l'accueil
+        </Link>
       </div>
     );
   }
 
+  // Main form rendering
   return (
-    <div className="container py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <Link
-            to="/dashboard"
-            className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition-colors duration-300 flex items-center"
-            title="Retour au tableau de bord"
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">
+        {isEditMode ? "Modifier le Cours" : "Créer un Nouveau Cours"}
+      </h1>
+
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab("info")}
+            className={
+              (activeTab === "info"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300") +
+              " whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+            }
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-            </svg>
-          </Link>
-          <Link
-            to="/instructor/courses"
-            className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700 transition-colors duration-300 flex items-center"
-            title="Mes cours"
+            Infos Générales
+          </button>
+          <button
+            onClick={() => setActiveTab("modules")}
+            className={
+              (activeTab === "modules"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300") +
+              " whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+            }
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-            </svg>
-          </Link>
-          <h1 className="text-3xl font-bold">
-            {isEditMode ? "Modifier le cours" : "Créer un nouveau cours"}
-          </h1>
-        </div>
-        <div className="text-sm text-gray-600">
-          Connecté en tant que:{" "}
-          <span className="font-semibold">
-            {userInfo?.firstName || userInfo?.prenom || ""}{" "}
-            {userInfo?.lastName || userInfo?.nom || ""}
-          </span>
-          <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-            {userInfo?.role === "instructor" ||
-            userInfo?.userType === "formateur"
-              ? "Formateur"
-              : "Administrateur"}
-          </span>
-        </div>
+            Modules du Cours
+          </button>
+        </nav>
       </div>
 
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <svg
-              className="h-5 w-5 text-blue-500"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+      {/* Display General Errors/Success */}
+      {error && (
+        <div
+          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+          role="alert"
+        >
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+      {success && (
+        <div
+          className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4"
+          role="alert"
+        >
+          <span className="block sm:inline">{success}</span>
+        </div>
+      )}
+
+      {/* Form Content based on Active Tab */}
+      {activeTab === "info" && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* --- Course Info Fields --- */}
+          <div>
+            <label
+              htmlFor="title"
+              className="block text-sm font-medium text-gray-700 mb-1"
             >
-              <path
-                fillRule="evenodd"
-                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                clipRule="evenodd"
-              />
-            </svg>
+              Titre du Cours
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              value={courseData.title}
+              onChange={handleChange}
+              required
+              minLength={5}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Ex: Introduction à React"
+            />
           </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">
-              Informations importantes
-            </h3>
-            <div className="mt-2 text-sm text-blue-700">
-              <ul className="list-disc pl-5 space-y-1">
-                <li>
-                  Tous les champs marqués d'un astérisque (*) sont obligatoires.
-                </li>
-                <li>
-                  Vous devez sélectionner une spécialité avant de pouvoir
-                  choisir une discipline.
-                </li>
-                <li>
-                  Une fois le cours créé, vous pourrez ajouter des modules et
-                  des ressources.
-                </li>
-              </ul>
+
+          <div>
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Description
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              rows={4}
+              value={courseData.description}
+              onChange={handleChange}
+              required
+              minLength={10}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Décrivez le contenu et les objectifs du cours"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                htmlFor="level"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Niveau
+              </label>
+              <select
+                id="level"
+                name="level"
+                value={courseData.level}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              >
+                <option value="Débutant">Débutant</option>
+                <option value="Intermédiaire">Intermédiaire</option>
+                <option value="Avancé">Avancé</option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="duration"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Durée Estimée
+              </label>
+              <input
+                type="text"
+                id="duration"
+                name="duration"
+                value={courseData.duration}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Ex: 10 heures, 3 semaines"
+              />
             </div>
           </div>
-        </div>
-      </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-          {success}
-        </div>
-      )}
-
-      <div className="max-w-4xl mx-auto p-6">
-        {loading ? (
-          <div className="flex justify-center items-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          </div>
-        ) : (
-          <div>
-            {activeTab === "info" ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (
-                    courseData.title &&
-                    courseData.description &&
-                    courseData.specialiteId &&
-                    courseData.disciplineId
-                  ) {
-                    setActiveTab("modules");
-                  } else {
-                    // Afficher un message d'erreur si les champs obligatoires ne sont pas remplis
-                    setError(
-                      "Veuillez remplir tous les champs obligatoires avant de continuer"
-                    );
-                  }
-                }}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                htmlFor="price"
+                className="block text-sm font-medium text-gray-700 mb-1"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Titre*
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={courseData.title}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder="Titre du cours"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Image (URL)
-                    </label>
-                    <input
-                      type="url"
-                      name="image"
-                      value={courseData.image}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder="URL de l'image"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    Description du cours*
-                  </label>
-                  <div className="mb-2">
-                    <textarea
-                      name="description"
-                      value={courseData.description}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder="Décrivez votre cours en détail. Incluez les objectifs d'apprentissage, les prérequis et ce que les étudiants vont apprendre."
-                      rows="6"
-                      required
-                    />
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-600">
-                    <p className="font-medium mb-1">
-                      Conseils pour une bonne description :
-                    </p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li>
-                        Expliquez clairement les objectifs d'apprentissage
-                      </li>
-                      <li>Mentionnez les prérequis nécessaires</li>
-                      <li>Décrivez à qui s'adresse ce cours</li>
-                      <li>
-                        Précisez les compétences que les étudiants acquerront
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Niveau
-                    </label>
-                    <select
-                      name="level"
-                      value={courseData.level}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    >
-                      <option value="Débutant">Débutant</option>
-                      <option value="Intermédiaire">Intermédiaire</option>
-                      <option value="Avancé">Avancé</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Durée (heures)
-                    </label>
-                    <input
-                      type="number"
-                      name="duration"
-                      value={courseData.duration}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder="Durée en heures"
-                      min="1"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Prix (€)
-                    </label>
-                    <input
-                      type="number"
-                      name="price"
-                      value={courseData.price}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder="Prix"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Spécialité*
-                    </label>
-                    <select
-                      name="specialiteId"
-                      value={courseData.specialiteId}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      required
-                    >
-                      <option value="">Sélectionner une spécialité</option>
-                      {specialites.map((specialite) => (
-                        <option key={specialite.id} value={specialite.id}>
-                          {specialite.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 text-sm font-bold mb-2">
-                      Discipline*
-                    </label>
-                    <select
-                      name="disciplineId"
-                      value={courseData.disciplineId}
-                      onChange={handleChange}
-                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      disabled={!courseData.specialiteId}
-                      required
-                    >
-                      <option value="">Sélectionner une discipline</option>
-                      {filteredDisciplines.map((discipline) => (
-                        <option key={discipline.id} value={discipline.id}>
-                          {discipline.name}
-                        </option>
-                      ))}
-                    </select>
-                    {!courseData.specialiteId && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        Veuillez d'abord sélectionner une spécialité
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 mt-8 pt-6">
-                  <div className="flex flex-col md:flex-row justify-between items-center">
-                    <div className="text-sm text-gray-600 mb-4 md:mb-0">
-                      <span className="text-red-500">*</span> Champs
-                      obligatoires
-                    </div>
-
-                    <div className="flex">
-                      <button
-                        type="button"
-                        onClick={() => navigate(-1)}
-                        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400 transition-colors duration-300 flex items-center"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 mr-1"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Annuler
-                      </button>
-
-                      <button
-                        type="submit"
-                        className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 mr-1"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" />
-                        </svg>
-                        Continuer vers les modules
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            ) : (
-              <div>
-                <ModuleManagerCreation
-                  modules={courseModules}
-                  setModules={setCourseModules}
-                />
-                <div className="border-t border-gray-200 mt-8 pt-6">
-                  <div className="flex flex-col md:flex-row justify-between items-center">
-                    <div className="text-sm text-gray-600 mb-4 md:mb-0">
-                      {courseModules.length === 0 ? (
-                        <span className="text-amber-600">
-                          Aucun module ajouté. Vous pouvez ajouter des modules
-                          maintenant ou plus tard.
-                        </span>
-                      ) : (
-                        <span className="text-green-600">
-                          {courseModules.length} module(s) ajouté(s) au cours
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("info")}
-                        className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2 hover:bg-gray-400 transition-colors duration-300 flex items-center"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 mr-1"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Retour aux informations
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSubmit}
-                        className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center"
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                            Enregistrement...
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5 mr-1"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            {isEditMode ? "Mettre à jour" : "Créer le cours"}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                Prix (0 pour gratuit)
+              </label>
+              <input
+                type="number"
+                id="price"
+                name="price"
+                value={courseData.price}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="image"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                URL de l'Image de Couverture (Optionnel)
+              </label>
+              <input
+                type="url"
+                id="image"
+                name="image"
+                value={courseData.image}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                htmlFor="specialiteId"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Spécialité
+              </label>
+              <select
+                id="specialiteId"
+                name="specialiteId"
+                value={courseData.specialiteId}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              >
+                <option value="">-- Sélectionnez une spécialité --</option>
+                {specialites.map((spec) => (
+                  <option key={spec.id} value={spec.id}>
+                    {spec.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="disciplineId"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Discipline
+              </label>
+              <select
+                id="disciplineId"
+                name="disciplineId"
+                value={courseData.disciplineId}
+                onChange={handleChange}
+                required
+                disabled={
+                  !courseData.specialiteId || filteredDisciplines.length === 0
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white disabled:bg-gray-100"
+              >
+                <option value="">
+                  {courseData.specialiteId
+                    ? "-- Sélectionnez une discipline --"
+                    : "-- Sélectionnez d&apos;abord une spécialité --"}
+                </option>
+                {filteredDisciplines.map((disc) => (
+                  <option key={disc.id} value={disc.id}>
+                    {disc.name}
+                  </option>
+                ))}
+              </select>
+              {!courseData.specialiteId && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Veuillez sélectionner une spécialité pour voir les
+                  disciplines.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Hidden instructorId - could also be displayed as read-only */}
+          <input
+            type="hidden"
+            name="instructorId"
+            value={courseData.instructorId}
+          />
+
+          {/* --- Form Actions --- */}
+          <div className="flex justify-end space-x-4 pt-4">
+            <Link
+              to={isEditMode ? `/courses/${courseIdParam}` : "/admin/dashboard"} // Adjust cancel path
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Annuler
+            </Link>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving
+                ? "Sauvegarde en cours..."
+                : isEditMode
+                ? "Mettre à jour les informations"
+                : "Créer le cours"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Module Manager Tab */}
+      {activeTab === "modules" && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Gestion des Modules</h2>
+          <p className="mb-4 text-sm text-gray-600">
+            Ajoutez, modifiez, supprimez et réorganisez les modules de votre
+            cours. N&apos;oubliez pas de sauvegarder les informations générales
+            du cours (même si inchangées) pour enregistrer les modifications
+            apportées aux modules.
+          </p>
+          <ModuleManagerCreation
+            modules={courseModules}
+            setModules={setCourseModules}
+            courseId={courseIdParam || null} // Pass courseId if available
+          />
+          {/* Add a save button specifically for modules if needed, or rely on the main form save */}
+          <div className="flex justify-end space-x-4 pt-4">
+            {/* Optional: Add a separate save button just for modules if workflow demands it */}
+            {/* For simplicity now, we save everything via the main form's submit */}
+            <button
+              onClick={handleSubmit} // Trigger the main form save
+              disabled={saving}
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving
+                ? "Sauvegarde en cours..."
+                : "Sauvegarder Cours et Modules"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

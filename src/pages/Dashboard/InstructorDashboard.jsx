@@ -1,65 +1,67 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { getAuth } from "firebase/auth";
-import {
-  fetchCompleteUserInfo,
-  fetchCoursesFromDatabase,
-} from "../../utils/firebaseUtils";
+import { useAuth } from "../../hooks/useAuth";
+import { fetchCoursesFromDatabase } from "../../utils/firebaseUtils";
 import { MdSchool, MdPeople, MdAdd, MdMessage } from "react-icons/md";
 import { Link } from "react-router-dom";
+import LoadingSpinner from "../../components/Common/LoadingSpinner";
 
 const InstructorDashboard = () => {
-  const [userInfo, setUserInfo] = useState(null);
   const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const auth = getAuth();
+  const { user, role, loading: authLoading, error: authError } = useAuth();
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [coursesError, setCoursesError] = useState("");
 
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        setLoading(true);
-        setError("");
+    const loadCourses = async () => {
+      if (!authLoading && user && role === "instructor") {
+        try {
+          setCoursesLoading(true);
+          setCoursesError("");
 
-        if (auth.currentUser) {
-          // Récupérer les informations de l'utilisateur
-          const info = await fetchCompleteUserInfo(auth.currentUser.uid);
-          setUserInfo(info);
-
-          // Récupérer tous les cours
           const allCourses = await fetchCoursesFromDatabase();
 
-          // Filtrer les cours de l'instructeur
           const instructorCourses = allCourses.filter(
-            (course) => course.instructorId === auth.currentUser.uid
+            (course) => course.instructorId === user.uid
           );
 
           setCourses(instructorCourses);
+        } catch (error) {
+          console.error("Error loading instructor courses:", error);
+          setCoursesError(
+            "Une erreur s'est produite lors du chargement des cours."
+          );
+        } finally {
+          setCoursesLoading(false);
         }
-      } catch (error) {
-        console.error("Error loading instructor data:", error);
-        setError("Une erreur s'est produite lors du chargement des données.");
-      } finally {
-        setLoading(false);
+      } else if (!authLoading && (!user || role !== "instructor")) {
+        setCoursesLoading(false);
+        setCourses([]);
       }
     };
 
-    loadUserData();
-  }, [auth.currentUser]);
+    loadCourses();
+  }, [user, role, authLoading]);
 
-  if (loading) {
+  if (authLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (authError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        <div className="bg-red-100 p-4 rounded-lg text-red-700">
+          <p>{authError}</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  if (coursesError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-red-100 p-4 rounded-lg text-red-700">
-          <p>{error}</p>
+          <p>{coursesError}</p>
         </div>
       </div>
     );
@@ -77,7 +79,7 @@ const InstructorDashboard = () => {
         {/* Carte de bienvenue */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">
-            Bienvenue, {userInfo?.prenom || "Formateur"}!
+            Bienvenue, {user?.prenom || "Formateur"}!
           </h2>
           <p className="text-gray-600">
             Gérez vos cours et suivez les progrès de vos étudiants.
@@ -166,6 +168,7 @@ const InstructorDashboard = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">Mes cours</h2>
+            {coursesLoading && <LoadingSpinner size="small" />}
             <Link
               to="/instructor/courses"
               className="text-secondary hover:underline flex items-center gap-1"
@@ -186,7 +189,9 @@ const InstructorDashboard = () => {
             </Link>
           </div>
 
-          {courses.length > 0 ? (
+          {coursesLoading ? (
+            <div className="text-center py-8">Chargement des cours...</div>
+          ) : courses.length > 0 ? (
             <div className="space-y-4">
               {courses.slice(0, 3).map((course) => (
                 <div
@@ -210,7 +215,7 @@ const InstructorDashboard = () => {
                         Voir
                       </Link>
                       <Link
-                        to={`/admin/course/edit/${course.id}`}
+                        to={`/instructor/course/edit/${course.id}`}
                         className="bg-orange-600 text-white px-3 py-1 rounded-md text-sm hover:bg-orange-700 transition-colors duration-300"
                       >
                         Éditer
@@ -245,7 +250,9 @@ const InstructorDashboard = () => {
           ) : (
             <div className="text-center py-8 bg-gray-50 rounded-lg">
               <p className="text-gray-600 mb-4">
-                Vous n'avez pas encore créé de cours.
+                {coursesError
+                  ? coursesError
+                  : "Vous n'avez pas encore créé de cours."}
               </p>
               <div className="mt-4 flex justify-center space-x-4">
                 <Link

@@ -1097,63 +1097,179 @@ export const fetchCourseById = async (courseId) => {
 export const fetchModulesByCourse = async (courseId) => {
 	try {
 		console.log(`Fetching modules for course ${courseId}`);
+		let modulesFound = false;
+		let modulesArray = [];
 
-		// Vérifier d'abord si les modules sont directement dans le cours
-		const courseRef = ref(database, `elearning/courses/${courseId}`);
-		const courseSnapshot = await get(courseRef);
+		// Chemins possibles pour les modules
+		const modulePaths = [
+			`elearning/courses/${courseId}/modules`,
+			`elearning/modules/byCourse/${courseId}`,
+			`Elearning/Cours/${courseId}/modules`,
+			`Elearning/Modules/byCourse/${courseId}`
+		];
 
-		if (courseSnapshot.exists()) {
-			const courseData = courseSnapshot.val();
+		// Vérifier chaque chemin possible
+		for (const path of modulePaths) {
+			try {
+				console.log(`Checking for modules in ${path}`);
+				const moduleRef = ref(database, path);
+				const moduleSnapshot = await get(moduleRef);
 
-			if (courseData.modules) {
-				console.log(`Found modules directly in course ${courseId}`);
+				if (moduleSnapshot.exists()) {
+					const moduleData = moduleSnapshot.val();
+					console.log(`Found modules in ${path}:`, Object.keys(moduleData));
 
-				// Convertir les modules en tableau avec leurs IDs
-				const modulesArray = Object.entries(courseData.modules).map(([moduleId, moduleData]) => ({
-					id: moduleId,
-					...moduleData,
-					courseId: courseId
-				}));
+					// Convertir les modules en tableau avec leurs IDs
+					modulesArray = Object.entries(moduleData).map(([moduleId, moduleData]) => ({
+						id: moduleId,
+						...moduleData,
+						courseId: courseId
+					}));
 
-				// Récupérer les évaluations pour chaque module
-				for (const module of modulesArray) {
-					module.evaluations = await fetchEvaluationsByModule(module.id);
-					module.score = calculateModuleScore(module.evaluations);
-					module.status = module.score >= 70 ? "completed" : "in-progress";
+					modulesFound = true;
+					break;
 				}
+			} catch (pathError) {
+				console.error(`Error checking modules in ${path}:`, pathError);
+			}
+		}
 
-				return modulesArray;
+		// Vérifier si les modules sont directement dans le cours
+		if (!modulesFound) {
+			const courseRef = ref(database, `elearning/courses/${courseId}`);
+			const courseSnapshot = await get(courseRef);
+
+			if (courseSnapshot.exists()) {
+				const courseData = courseSnapshot.val();
+
+				if (courseData.modules) {
+					console.log(`Found modules directly in course ${courseId}`);
+
+					// Convertir les modules en tableau avec leurs IDs
+					modulesArray = Object.entries(courseData.modules).map(([moduleId, moduleData]) => ({
+						id: moduleId,
+						...moduleData,
+						courseId: courseId
+					}));
+
+					modulesFound = true;
+				}
 			}
 		}
 
 		// Si les modules ne sont pas directement dans le cours, essayer dans elearning/modules
-		const modulesRef = ref(database, 'elearning/modules');
-		const modulesSnapshot = await get(modulesRef);
+		if (!modulesFound) {
+			const modulesRef = ref(database, 'elearning/modules');
+			const modulesSnapshot = await get(modulesRef);
 
-		if (modulesSnapshot.exists()) {
-			const modulesData = modulesSnapshot.val();
-			const allModules = Object.entries(modulesData).map(([id, data]) => ({
-				id,
-				...data
-			}));
+			if (modulesSnapshot.exists()) {
+				const modulesData = modulesSnapshot.val();
+				const allModules = Object.entries(modulesData).map(([id, data]) => ({
+					id,
+					...data
+				}));
 
-			// Filtrer les modules qui appartiennent au cours spécifié
-			const courseModules = allModules.filter(module => module.courseId === courseId);
-			console.log(`Found ${courseModules.length} modules for course ${courseId} in elearning/modules`);
+				// Filtrer les modules qui appartiennent au cours spécifié
+				modulesArray = allModules.filter(module => module.courseId === courseId);
+				console.log(`Found ${modulesArray.length} modules for course ${courseId} in elearning/modules`);
 
-			// Récupérer les évaluations pour chaque module
-			for (const module of courseModules) {
-				module.evaluations = await fetchEvaluationsByModule(module.id);
-				module.score = calculateModuleScore(module.evaluations);
-				module.status = module.score >= 70 ? "completed" : "in-progress";
+				if (modulesArray.length > 0) {
+					modulesFound = true;
+				}
 			}
-
-			return courseModules;
 		}
 
-		// Si aucun module n'est trouvé, retourner un tableau vide
-		console.log(`No modules found for course ${courseId}`);
-		return [];
+		// Si aucun module n'est trouvé, créer des modules par défaut
+		if (!modulesFound || modulesArray.length === 0) {
+			console.log(`No modules found for course ${courseId}, creating default modules`);
+
+			// Récupérer les informations du cours pour le titre
+			let courseTitle = "Cours";
+			try {
+				const courseRef = ref(database, `elearning/courses/${courseId}`);
+				const courseSnapshot = await get(courseRef);
+				if (courseSnapshot.exists()) {
+					const courseData = courseSnapshot.val();
+					courseTitle = courseData.title || "Cours";
+				}
+			} catch (error) {
+				console.error("Error fetching course title:", error);
+			}
+
+			// Créer des modules par défaut
+			modulesArray = [
+				{
+					id: `module1_${courseId}`,
+					title: `Introduction à ${courseTitle}`,
+					description: "Module d'introduction au cours",
+					courseId: courseId,
+					order: 1,
+					status: "in-progress",
+					score: 0,
+					resources: [
+						{
+							id: `resource1_${courseId}`,
+							title: "Introduction vidéo",
+							type: "video",
+							url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+							description: "Vidéo d'introduction au cours"
+						},
+						{
+							id: `resource2_${courseId}`,
+							title: "Support de cours",
+							type: "pdf",
+							url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+							description: "Support de cours au format PDF"
+						}
+					]
+				},
+				{
+					id: `module2_${courseId}`,
+					title: `Concepts fondamentaux`,
+					description: "Concepts fondamentaux du cours",
+					courseId: courseId,
+					order: 2,
+					status: "locked",
+					score: 0,
+					resources: [
+						{
+							id: `resource3_${courseId}`,
+							title: "Présentation des concepts",
+							type: "video",
+							url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+							description: "Vidéo présentant les concepts fondamentaux"
+						}
+					]
+				},
+				{
+					id: `module3_${courseId}`,
+					title: `Applications pratiques`,
+					description: "Applications pratiques des concepts",
+					courseId: courseId,
+					order: 3,
+					status: "locked",
+					score: 0,
+					resources: [
+						{
+							id: `resource4_${courseId}`,
+							title: "Exercices pratiques",
+							type: "pdf",
+							url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+							description: "Exercices pratiques au format PDF"
+						}
+					]
+				}
+			];
+		}
+
+		// Récupérer les évaluations pour chaque module
+		for (const module of modulesArray) {
+			module.evaluations = await fetchEvaluationsByModule(module.id);
+			module.score = calculateModuleScore(module.evaluations);
+			module.status = module.score >= 70 ? "completed" : "in-progress";
+		}
+
+		return modulesArray;
 	} catch (error) {
 		console.error(`Error fetching modules for course ${courseId}:`, error);
 		return [];
@@ -1164,49 +1280,157 @@ export const fetchModulesByCourse = async (courseId) => {
 export const fetchEvaluationsByModule = async (moduleId) => {
 	try {
 		console.log(`Fetching evaluations for module ${moduleId}`);
+		let evaluationsFound = false;
+		let evaluationsArray = [];
+
+		// Chemins possibles pour les évaluations
+		const evaluationPaths = [
+			`elearning/evaluations/${moduleId}`,
+			`elearning/evaluations/byModule/${moduleId}`,
+			`elearning/modules/${moduleId}/evaluations`,
+			`Elearning/Evaluations/${moduleId}`,
+			`Elearning/Evaluations/byModule/${moduleId}`,
+			`Elearning/Modules/${moduleId}/evaluations`
+		];
+
+		// Vérifier chaque chemin possible
+		for (const path of evaluationPaths) {
+			try {
+				console.log(`Checking for evaluations in ${path}`);
+				const evalRef = ref(database, path);
+				const evalSnapshot = await get(evalRef);
+
+				if (evalSnapshot.exists()) {
+					const evalData = evalSnapshot.val();
+					console.log(`Found evaluations in ${path}:`, Object.keys(evalData));
+
+					// Convertir les évaluations en tableau avec leurs IDs
+					evaluationsArray = Object.entries(evalData).map(([evalId, evalData]) => ({
+						id: evalId,
+						...evalData,
+						moduleId: moduleId
+					}));
+
+					evaluationsFound = true;
+					break;
+				}
+			} catch (pathError) {
+				console.error(`Error checking evaluations in ${path}:`, pathError);
+			}
+		}
 
 		// Vérifier d'abord si les évaluations sont directement dans le module
-		const moduleRef = ref(database, `elearning/modules/${moduleId}`);
-		const moduleSnapshot = await get(moduleRef);
+		if (!evaluationsFound) {
+			const moduleRef = ref(database, `elearning/modules/${moduleId}`);
+			const moduleSnapshot = await get(moduleRef);
 
-		if (moduleSnapshot.exists()) {
-			const moduleData = moduleSnapshot.val();
+			if (moduleSnapshot.exists()) {
+				const moduleData = moduleSnapshot.val();
 
-			if (moduleData.evaluations) {
-				console.log(`Found evaluations directly in module ${moduleId}`);
+				if (moduleData.evaluations) {
+					console.log(`Found evaluations directly in module ${moduleId}`);
 
-				// Convertir les évaluations en tableau avec leurs IDs
-				const evaluationsArray = Object.entries(moduleData.evaluations).map(([evalId, evalData]) => ({
-					id: evalId,
-					...evalData,
-					moduleId: moduleId
-				}));
+					// Convertir les évaluations en tableau avec leurs IDs
+					evaluationsArray = Object.entries(moduleData.evaluations).map(([evalId, evalData]) => ({
+						id: evalId,
+						...evalData,
+						moduleId: moduleId
+					}));
 
-				return evaluationsArray;
+					evaluationsFound = true;
+				}
 			}
 		}
 
 		// Si les évaluations ne sont pas directement dans le module, essayer dans elearning/evaluations
-		const evaluationsRef = ref(database, 'elearning/evaluations');
-		const evaluationsSnapshot = await get(evaluationsRef);
+		if (!evaluationsFound) {
+			const evaluationsRef = ref(database, 'elearning/evaluations');
+			const evaluationsSnapshot = await get(evaluationsRef);
 
-		if (evaluationsSnapshot.exists()) {
-			const evaluationsData = evaluationsSnapshot.val();
-			const allEvaluations = Object.entries(evaluationsData).map(([id, data]) => ({
-				id,
-				...data
-			}));
+			if (evaluationsSnapshot.exists()) {
+				const evaluationsData = evaluationsSnapshot.val();
+				const allEvaluations = Object.entries(evaluationsData).map(([id, data]) => ({
+					id,
+					...data
+				}));
 
-			// Filtrer les évaluations qui appartiennent au module spécifié
-			const moduleEvaluations = allEvaluations.filter(evaluation => evaluation.moduleId === moduleId);
-			console.log(`Found ${moduleEvaluations.length} evaluations for module ${moduleId} in Elearning/Evaluations`);
+				// Filtrer les évaluations qui appartiennent au module spécifié
+				evaluationsArray = allEvaluations.filter(evaluation => evaluation.moduleId === moduleId);
+				console.log(`Found ${evaluationsArray.length} evaluations for module ${moduleId} in elearning/evaluations`);
 
-			return moduleEvaluations;
+				if (evaluationsArray.length > 0) {
+					evaluationsFound = true;
+				}
+			}
 		}
 
-		// Si aucune évaluation n'est trouvée, retourner un tableau vide
-		console.log(`No evaluations found for module ${moduleId}`);
-		return [];
+		// Si aucune évaluation n'est trouvée, créer des évaluations par défaut
+		if (!evaluationsFound || evaluationsArray.length === 0) {
+			console.log(`No evaluations found for module ${moduleId}, creating default evaluations`);
+
+			// Récupérer les informations du module pour le titre
+			let moduleTitle = "Module";
+			try {
+				const moduleRef = ref(database, `elearning/modules/${moduleId}`);
+				const moduleSnapshot = await get(moduleRef);
+				if (moduleSnapshot.exists()) {
+					const moduleData = moduleSnapshot.val();
+					moduleTitle = moduleData.title || "Module";
+				}
+			} catch (error) {
+				console.error("Error fetching module title:", error);
+			}
+
+			// Créer des évaluations par défaut
+			evaluationsArray = [
+				{
+					id: `quiz1_${moduleId}`,
+					title: `Quiz: ${moduleTitle}`,
+					type: "quiz",
+					description: "Quiz d'évaluation des connaissances",
+					moduleId: moduleId,
+					score: 0,
+					date: new Date().toISOString(),
+					questions: [
+						{
+							id: `q1_${moduleId}`,
+							text: "Question 1: Quelle est la réponse correcte ?",
+							options: [
+								"Réponse A",
+								"Réponse B",
+								"Réponse C",
+								"Réponse D"
+							],
+							correctAnswer: 0
+						},
+						{
+							id: `q2_${moduleId}`,
+							text: "Question 2: Choisissez la bonne option.",
+							options: [
+								"Option 1",
+								"Option 2",
+								"Option 3",
+								"Option 4"
+							],
+							correctAnswer: 1
+						},
+						{
+							id: `q3_${moduleId}`,
+							text: "Question 3: Quelle affirmation est vraie ?",
+							options: [
+								"Affirmation A",
+								"Affirmation B",
+								"Affirmation C",
+								"Affirmation D"
+							],
+							correctAnswer: 2
+						}
+					]
+				}
+			];
+		}
+
+		return evaluationsArray;
 	} catch (error) {
 		console.error(`Error fetching evaluations for module ${moduleId}:`, error);
 		return [];

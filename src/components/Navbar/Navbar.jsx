@@ -9,6 +9,9 @@ import {
   MdSettings,
   MdMessage,
   MdSchool,
+  MdDashboard,
+  MdAdminPanelSettings,
+  MdEmail,
 } from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
 import { motion } from "framer-motion";
@@ -32,19 +35,58 @@ const Navbar = () => {
       setUser(currentUser);
       if (currentUser) {
         try {
-          // Fetch user type from database
+          // Fetch user type from database (new structure)
           const db = getDatabase();
-          const userRef = ref(db, `users/${currentUser.uid}`);
+          const userRef = ref(db, `elearning/users/${currentUser.uid}`);
           const snapshot = await get(userRef);
-          const userData = snapshot.val();
-          setUserType(userData?.userType);
 
-          // Fetch complete user info
-          const completeInfo = await fetchCompleteUserInfo(currentUser.uid);
-          setUserInfo(completeInfo);
-          console.log("Complete user info:", completeInfo);
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            setUserType(userData.role || "student");
+            setUserInfo(userData);
+            console.log("User info from elearning/users:", userData);
+          } else {
+            // Try legacy path
+            const legacyUserRef = ref(db, `users/${currentUser.uid}`);
+            const legacySnapshot = await get(legacyUserRef);
+
+            if (legacySnapshot.exists()) {
+              const legacyUserData = legacySnapshot.val();
+              // Map old userType to new role format
+              const role =
+                legacyUserData.userType === "admin"
+                  ? "admin"
+                  : legacyUserData.userType === "instructor" ||
+                    legacyUserData.userType === "formateur"
+                  ? "instructor"
+                  : "student";
+              setUserType(role);
+
+              // Fetch complete user info as fallback
+              const completeInfo = await fetchCompleteUserInfo(currentUser.uid);
+              setUserInfo(completeInfo);
+              console.log("Complete user info (legacy):", completeInfo);
+            } else {
+              // Default to student if no user data found
+              setUserType("student");
+              setUserInfo({
+                id: currentUser.uid,
+                email: currentUser.email,
+                displayName: currentUser.displayName || "Utilisateur",
+                role: "student",
+              });
+            }
+          }
         } catch (error) {
           console.error("Error fetching user info:", error);
+          // Default values in case of error
+          setUserType("student");
+          setUserInfo({
+            id: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName || "Utilisateur",
+            role: "student",
+          });
         }
       } else {
         setUserType(null);
@@ -153,21 +195,51 @@ const Navbar = () => {
                       <MdPerson className="mr-2 h-5 w-5" />
                       Mon profil
                     </Link>
-                    <Link
-                      to="/my-courses"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <MdBook className="mr-2 h-5 w-5" />
-                      Mes formations
-                    </Link>
-                    {userType && (
+                    {/* Lien vers les cours selon le rôle */}
+                    {userType === "student" && (
                       <Link
-                        to={`/dashboard/${userType.toLowerCase()}`}
+                        to="/student/enrollments"
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setUserMenuOpen(false)}
                       >
-                        <MdSettings className="mr-2 h-5 w-5" />
+                        <MdBook className="mr-2 h-5 w-5" />
+                        Mes formations
+                      </Link>
+                    )}
+                    {userType === "instructor" && (
+                      <Link
+                        to="/instructor/courses"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <MdBook className="mr-2 h-5 w-5" />
+                        Mes cours
+                      </Link>
+                    )}
+                    {userType === "admin" && (
+                      <Link
+                        to="/admin/courses"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <MdBook className="mr-2 h-5 w-5" />
+                        Gestion des cours
+                      </Link>
+                    )}
+                    {/* Tableau de bord spécifique au rôle */}
+                    {userType && (
+                      <Link
+                        to={
+                          userType === "admin"
+                            ? "/admin/dashboard"
+                            : userType === "instructor"
+                            ? "/instructor/dashboard"
+                            : "/student/dashboard"
+                        }
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <MdDashboard className="mr-2 h-5 w-5" />
                         Tableau de bord
                       </Link>
                     )}
@@ -177,7 +249,9 @@ const Navbar = () => {
                       onClick={() => setUserMenuOpen(false)}
                     >
                       <MdMessage className="mr-2 h-5 w-5" />
-                      {userType === "formateur" || userType === "instructor"
+                      {userType === "admin"
+                        ? "Messages"
+                        : userType === "instructor"
                         ? "Messages des étudiants"
                         : "Contacter les formateurs"}
                     </Link>

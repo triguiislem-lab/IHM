@@ -30,30 +30,64 @@ const StudentContactForm = ({ courseId, courseName }) => {
       if (!auth.currentUser || !courseId) return;
 
       try {
-        // Vérifier si l'étudiant est inscrit au cours (nouvelle structure)
-        const enrollmentRef = ref(
-          database,
-          `elearning/enrollments/${auth.currentUser.uid}/${courseId}`
-        );
-        const enrollmentSnapshot = await get(enrollmentRef);
+        // Vérifier si l'étudiant est inscrit au cours (vérification complète)
+        // Chemins à vérifier pour l'inscription
+        const enrollmentPaths = [
+          `elearning/enrollments/${auth.currentUser.uid}/${courseId}`,
+          `elearning/enrollments/byCourse/${courseId}/${auth.currentUser.uid}`,
+          `elearning/enrollments/byUser/${auth.currentUser.uid}/${courseId}`,
+          `elearning/progress/${auth.currentUser.uid}/${courseId}`,
+          `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`,
+          `Elearning/Enrollments/byUser/${auth.currentUser.uid}/${courseId}`,
+          `Elearning/Cours/${courseId}/enrollments/${auth.currentUser.uid}`,
+          `Elearning/Progression/${auth.currentUser.uid}/${courseId}`,
+        ];
 
-        // Si pas trouvé, vérifier l'ancienne structure
-        if (!enrollmentSnapshot.exists()) {
-          const oldEnrollmentRef = ref(
-            database,
-            `Elearning/Enrollments/${courseId}/${auth.currentUser.uid}`
-          );
-          const oldEnrollmentSnapshot = await get(oldEnrollmentRef);
-          setIsEnrolled(oldEnrollmentSnapshot.exists());
+        // Vérifier chaque chemin
+        let isUserEnrolled = false;
+        for (const path of enrollmentPaths) {
+          try {
+            console.log(`Checking enrollment path: ${path}`);
+            const pathRef = ref(database, path);
+            const snapshot = await get(pathRef);
 
-          if (!oldEnrollmentSnapshot.exists()) {
-            setError(
-              "Vous devez être inscrit à ce cours pour contacter le formateur."
-            );
-            return;
+            if (snapshot.exists()) {
+              console.log(
+                `User is enrolled in course ${courseId} (found in ${path})`
+              );
+              isUserEnrolled = true;
+              break;
+            }
+          } catch (error) {
+            console.error(`Error checking enrollment in ${path}:`, error);
           }
+        }
+
+        // Vérifier également dans le stockage local
+        const enrolledInLocalStorage =
+          localStorage.getItem(
+            `enrolled_${auth.currentUser.uid}_${courseId}`
+          ) === "true";
+        if (enrolledInLocalStorage) {
+          console.log(
+            `User is enrolled in course ${courseId} (found in localStorage)`
+          );
+          isUserEnrolled = true;
+        }
+
+        setIsEnrolled(isUserEnrolled);
+
+        // Si l'utilisateur est inscrit, stocker cette information dans le stockage local
+        if (isUserEnrolled) {
+          localStorage.setItem(
+            `enrolled_${auth.currentUser.uid}_${courseId}`,
+            "true"
+          );
         } else {
-          setIsEnrolled(true);
+          setError(
+            "Vous devez être inscrit à ce cours pour contacter le formateur."
+          );
+          return;
         }
 
         // Récupérer les informations du cours pour trouver le formateur (nouvelle structure)

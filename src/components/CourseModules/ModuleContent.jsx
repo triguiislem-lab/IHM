@@ -233,8 +233,8 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
           </div>
         )}
 
-        {/* Onglets de navigation - visible uniquement si l'utilisateur est inscrit */}
-        {isEnrolled && (
+        {/* Onglets de navigation - visible pour tous, mais avec restrictions pour les non-inscrits */}
+        {
           <div className="flex border-b mb-6">
             <button
               className={`px-4 py-2 font-medium ${
@@ -257,10 +257,10 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
               Évaluation
             </button>
           </div>
-        )}
+        }
 
         {/* Contenu des onglets */}
-        {isEnrolled && activeTab === "resources" ? (
+        {activeTab === "resources" ? (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Liste des ressources */}
             <div className="md:col-span-1">
@@ -307,12 +307,26 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
 
             {/* Contenu de la ressource active */}
             <div className="md:col-span-3">
-              <SimpleModuleResource
-                resource={resources[activeResourceIndex] || null}
-              />
+              {isEnrolled ? (
+                <SimpleModuleResource
+                  resource={resources[activeResourceIndex] || null}
+                />
+              ) : (
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 text-center">
+                  <p className="text-gray-700 mb-4">
+                    Inscrivez-vous au cours pour accéder à cette ressource.
+                  </p>
+                  <div className="blur-sm pointer-events-none">
+                    <SimpleModuleResource
+                      resource={resources[activeResourceIndex] || null}
+                      disabled={true}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        ) : isEnrolled && activeTab === "evaluation" ? (
+        ) : activeTab === "evaluation" ? (
           <ModuleEvaluation
             moduleId={module.id}
             courseId={module.courseId}
