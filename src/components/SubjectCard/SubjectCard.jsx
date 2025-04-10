@@ -12,12 +12,12 @@ const SubjectCard = () => {
     const fetchData = async () => {
       try {
         // Récupérer les spécialités
-        console.log("Fetching specialites...");
+        
         const specialitesData = await fetchSpecialitesFromDatabase();
-        console.log("Specialites data:", specialitesData);
+        
         setSpecialites(specialitesData);
       } catch (error) {
-        console.error("Error fetching data:", error);
+        
       } finally {
         setLoading(false);
       }

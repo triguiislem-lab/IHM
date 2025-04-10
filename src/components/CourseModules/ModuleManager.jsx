@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import OptimizedLoadingSpinner from "../Common/OptimizedLoadingSpinner";
 import {
   MdAdd,
   MdSave,
@@ -8,6 +9,7 @@ import {
   MdEdit,
   MdQuiz,
   MdAssignment,
+  MdClose,
 } from "react-icons/md";
 import {
   addModuleToCourse,
@@ -84,7 +86,6 @@ const ModuleManager = ({ course, onModulesUpdated, instructorId }) => {
         setError("Erreur lors de l'ajout du module");
       }
     } catch (error) {
-      console.error("Error adding module:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -122,7 +123,6 @@ const ModuleManager = ({ course, onModulesUpdated, instructorId }) => {
         setError("Erreur lors de l'ajout de l'évaluation");
       }
     } catch (error) {
-      console.error("Error adding evaluation:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -146,7 +146,6 @@ const ModuleManager = ({ course, onModulesUpdated, instructorId }) => {
         setError("Erreur lors de la création des modules de test");
       }
     } catch (error) {
-      console.error("Error creating test modules:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -214,9 +213,9 @@ const ModuleManager = ({ course, onModulesUpdated, instructorId }) => {
           title="Ajouter des modules pré-remplis pour tester"
         >
           {loading ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <OptimizedLoadingSpinner size="small" text="" />
           ) : (
-            <MdAdd /> // Consider a different icon? Like MdBuild
+            <MdAdd />
           )}
           Créer Modules Test
         </button>

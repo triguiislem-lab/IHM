@@ -90,7 +90,7 @@ const EditProfile = () => {
       setSuccess("Profil mis à jour avec succès");
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      console.error("Error updating profile:", error);
+      
       setError("Erreur lors de la mise à jour du profil");
     } finally {
       setSaving(false);

@@ -20,7 +20,7 @@ const StudentDashboard = () => {
         const progressData = await getUserOverallProgress(userId);
         setProgress(progressData);
       } catch (error) {
-        console.error("Error loading student progress data:", error);
+        
         setProgressError(
           "Une erreur s&apos;est produite lors du chargement de la progression."
         );

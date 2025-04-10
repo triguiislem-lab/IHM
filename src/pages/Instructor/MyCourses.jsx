@@ -8,7 +8,15 @@ import {
   fetchCourseById,
   fetchCourseEnrollments,
 } from "../../utils/firebaseUtils";
-import { MdAdd, MdEdit, MdDelete, MdPeople, MdDashboard } from "react-icons/md";
+import {
+  MdAdd,
+  MdEdit,
+  MdDelete,
+  MdPeople,
+  MdDashboard,
+  MdSchool,
+  MdAssignment,
+} from "react-icons/md";
 
 const MyCourses = () => {
   const [loading, setLoading] = useState(true);
@@ -42,7 +50,11 @@ const MyCourses = () => {
           userInfoData?.role === "formateur" ||
           userInfoData?.userType === "formateur";
 
-        if (!isInstructor && userInfoData?.role !== "admin" && userInfoData?.userType !== "administrateur") {
+        if (
+          !isInstructor &&
+          userInfoData?.role !== "admin" &&
+          userInfoData?.userType !== "administrateur"
+        ) {
           setError("Vous n'avez pas les droits pour accéder à cette page");
           setTimeout(() => {
             navigate("/dashboard");
@@ -59,21 +71,21 @@ const MyCourses = () => {
 
         if (snapshot.exists()) {
           const coursesData = snapshot.val();
-          
+
           // Récupérer les détails complets de chaque cours et les inscriptions
           const coursesWithDetails = await Promise.all(
             Object.keys(coursesData).map(async (courseId) => {
               try {
                 const courseDetails = await fetchCourseById(courseId);
                 const enrollments = await fetchCourseEnrollments(courseId);
-                
+
                 return {
                   ...courseDetails,
                   students: enrollments.length,
                   enrollments: enrollments,
                 };
               } catch (error) {
-                console.error(`Error fetching details for course ${courseId}:`, error);
+                
                 return {
                   id: courseId,
                   title: coursesData[courseId].title || "Cours sans titre",
@@ -83,18 +95,18 @@ const MyCourses = () => {
               }
             })
           );
-          
+
           // Trier les cours par date de création (du plus récent au plus ancien)
           const sortedCourses = coursesWithDetails.sort((a, b) => {
             return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
           });
-          
+
           setCourses(sortedCourses);
         } else {
           setCourses([]);
         }
       } catch (error) {
-        console.error("Error loading instructor courses:", error);
+        
         setError("Erreur lors du chargement des cours");
       } finally {
         setLoading(false);
@@ -105,9 +117,13 @@ const MyCourses = () => {
   }, [auth.currentUser, navigate]);
 
   // Calculer les statistiques
-  const totalStudents = courses.reduce((total, course) => total + (course.students || 0), 0);
+  const totalStudents = courses.reduce(
+    (total, course) => total + (course.students || 0),
+    0
+  );
   const totalCourses = courses.length;
-  const averageStudentsPerCourse = totalCourses > 0 ? Math.round(totalStudents / totalCourses) : 0;
+  const averageStudentsPerCourse =
+    totalCourses > 0 ? Math.round(totalStudents / totalCourses) : 0;
 
   if (loading) {
     return (
@@ -156,7 +172,9 @@ const MyCourses = () => {
             </div>
             <div>
               <h3 className="text-lg font-semibold">Total Étudiants</h3>
-              <p className="text-3xl font-bold text-blue-600">{totalStudents}</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {totalStudents}
+              </p>
             </div>
           </div>
         </div>
@@ -168,7 +186,9 @@ const MyCourses = () => {
             </div>
             <div>
               <h3 className="text-lg font-semibold">Nombre de cours</h3>
-              <p className="text-3xl font-bold text-green-600">{totalCourses}</p>
+              <p className="text-3xl font-bold text-green-600">
+                {totalCourses}
+              </p>
             </div>
           </div>
         </div>
@@ -180,7 +200,9 @@ const MyCourses = () => {
             </div>
             <div>
               <h3 className="text-lg font-semibold">Moyenne d'étudiants</h3>
-              <p className="text-3xl font-bold text-purple-600">{averageStudentsPerCourse}</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {averageStudentsPerCourse}
+              </p>
             </div>
           </div>
         </div>
@@ -188,7 +210,9 @@ const MyCourses = () => {
 
       {/* Liste des cours */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-6">Liste de mes cours ({courses.length})</h2>
+        <h2 className="text-xl font-semibold mb-6">
+          Liste de mes cours ({courses.length})
+        </h2>
 
         {courses.length > 0 ? (
           <div className="overflow-x-auto">
@@ -209,12 +233,18 @@ const MyCourses = () => {
                     <td className="py-3 px-4">
                       {course.title || course.titre || "Cours sans titre"}
                     </td>
-                    <td className="py-3 px-4">{course.level || "Intermédiaire"}</td>
                     <td className="py-3 px-4">
-                      {course.specialiteName || course.disciplineName || "Non spécifié"}
+                      {course.level || "Intermédiaire"}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-semibold">{course.students || 0}</span>
+                      {course.specialiteName ||
+                        course.disciplineName ||
+                        "Non spécifié"}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="font-semibold">
+                        {course.students || 0}
+                      </span>
                     </td>
                     <td className="py-3 px-4">
                       {course.createdAt
@@ -222,20 +252,30 @@ const MyCourses = () => {
                         : "Non spécifié"}
                     </td>
                     <td className="py-3 px-4">
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-3">
                         <Link
                           to={`/course/${course.id}`}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Voir"
+                          className="text-blue-600 hover:text-blue-800 flex items-center"
+                          title="Voir le cours"
                         >
+                          <MdSchool className="mr-1" size={16} />
                           Voir
                         </Link>
                         <Link
                           to={`/admin/course/edit/${course.id}`}
-                          className="text-orange-600 hover:text-orange-800"
-                          title="Modifier"
+                          className="text-orange-600 hover:text-orange-800 flex items-center"
+                          title="Modifier les informations du cours"
                         >
-                          <MdEdit />
+                          <MdEdit className="mr-1" size={16} />
+                          Éditer
+                        </Link>
+                        <Link
+                          to={`/instructor/course-management/${course.id}`}
+                          className="text-green-600 hover:text-green-800 flex items-center"
+                          title="Gérer les modules et évaluations"
+                        >
+                          <MdAssignment className="mr-1" size={16} />
+                          Modules
                         </Link>
                       </div>
                     </td>
@@ -246,7 +286,9 @@ const MyCourses = () => {
           </div>
         ) : (
           <div className="text-center py-8 bg-gray-50 rounded-lg">
-            <p className="text-gray-600 mb-4">Vous n'avez pas encore créé de cours.</p>
+            <p className="text-gray-600 mb-4">
+              Vous n'avez pas encore créé de cours.
+            </p>
             <Link
               to="/admin/course/new"
               className="bg-secondary text-white px-4 py-2 rounded-md inline-flex items-center hover:bg-secondary/90 transition-colors duration-300"

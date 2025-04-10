@@ -63,7 +63,7 @@ const MessagesPage = () => {
       setMessages(received);
       setSentMessages(sent);
     } catch (err) {
-      console.error("Error fetching messages:", err);
+      
       setError("Erreur lors de la récupération des messages");
     } finally {
       setLoadingMessages(false);
@@ -85,7 +85,7 @@ const MessagesPage = () => {
         );
         setRecipients(availableRecipients);
       } catch (err) {
-        console.error("Error fetching recipients:", err);
+        
       }
     };
 
@@ -110,7 +110,7 @@ const MessagesPage = () => {
           );
         }
       } catch (err) {
-        console.error("Error updating message status:", err);
+        
         setError("Erreur lors de la mise à jour du statut du message");
       }
     },
@@ -145,7 +145,7 @@ const MessagesPage = () => {
         setSuccess("Message supprimé.");
         setTimeout(() => setSuccess(""), 3000);
       } catch (err) {
-        console.error("Error deleting message:", err);
+        
         setError("Erreur lors de la suppression du message");
       }
     },
@@ -210,7 +210,7 @@ const MessagesPage = () => {
 
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      console.error("Error sending message:", err);
+      
       setError(`Erreur lors de l'envoi du message: ${err.message}`);
     } finally {
       setSending(false);

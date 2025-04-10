@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import OptimizedLoadingSpinner from "../Common/OptimizedLoadingSpinner";
 import {
   ArrowLeft,
   Clock,
@@ -57,19 +58,13 @@ const CourseDetails = () => {
       try {
         const user = auth.currentUser;
         if (!user) {
-          console.log("No user logged in");
           return;
         }
-
-        console.log(`Checking enrollment for user ${user.uid} in course ${id}`);
 
         // Vérifier d'abord dans le stockage local
         const enrolledInLocalStorage =
           localStorage.getItem(`enrolled_${user.uid}_${id}`) === "true";
         if (enrolledInLocalStorage) {
-          console.log(
-            `User is enrolled in course ${id} (found in localStorage)`
-          );
           setIsEnrolled(true);
           return;
         }
@@ -85,20 +80,14 @@ const CourseDetails = () => {
         const isUserFormateur =
           userRole === "instructor" || userRole === "formateur";
 
-        console.log(
-          `User role: ${userRole}, isUserFormateur: ${isUserFormateur}`
-        );
-
         // Si l'utilisateur est un formateur, il a accès à tous les cours
         if (isUserFormateur) {
-          console.log(`User is an instructor, granting access to course ${id}`);
           setIsEnrolled(true);
           localStorage.setItem(`enrolled_${user.uid}_${id}`, "true");
           return;
         }
 
         // Vérifier si l'utilisateur est inscrit au cours
-        console.log(`Checking if user ${user.uid} is enrolled in course ${id}`);
 
         // Chemins à vérifier pour l'inscription
         const enrollmentPaths = [
@@ -114,25 +103,19 @@ const CourseDetails = () => {
         // Vérifier chaque chemin
         for (const path of enrollmentPaths) {
           try {
-            console.log(`Checking enrollment path: ${path}`);
             const pathRef = ref(database, path);
             const snapshot = await get(pathRef);
 
             if (snapshot.exists()) {
-              console.log(
-                `User is enrolled in course ${id} (found in ${path})`
-              );
               setIsEnrolled(true);
               localStorage.setItem(`enrolled_${user.uid}_${id}`, "true");
               return;
             }
-          } catch (error) {
-            console.error(`Error checking enrollment in ${path}:`, error);
-          }
+          } catch (error) {}
         }
 
         // Si nous arrivons ici, l'utilisateur n'est pas inscrit au cours
-        console.log(`User ${user.uid} is not enrolled in course ${id}`);
+
         setIsEnrolled(false);
         localStorage.removeItem(`enrolled_${user.uid}_${id}`);
 
@@ -149,10 +132,6 @@ const CourseDetails = () => {
             );
 
             if (userEnrollment) {
-              console.log(
-                `Found enrollment in generic collection, migrating...`
-              );
-
               // Migrer vers le nouveau format
               const newEnrollmentRef = ref(
                 database,
@@ -177,17 +156,12 @@ const CourseDetails = () => {
                   userEnrollment.enrolledAt || new Date().toISOString(),
               });
 
-              console.log(`Successfully migrated enrollment to new format`);
               setIsEnrolled(true);
               localStorage.setItem(`enrolled_${user.uid}_${id}`, "true");
             }
           }
-        } catch (error) {
-          console.error(`Error migrating enrollment data:`, error);
-        }
-      } catch (error) {
-        console.error("Error checking user role and enrollment:", error);
-      }
+        } catch (error) {}
+      } catch (error) {}
     };
 
     checkUserRoleAndEnrollment();
@@ -204,9 +178,6 @@ const CourseDetails = () => {
         localStorage.getItem(`enrolled_${userId}_${courseId}`) === "true";
 
       if (enrolledInLocalStorage && !isEnrolled) {
-        console.log(
-          `Setting isEnrolled to true based on localStorage for course ${courseId}`
-        );
         setIsEnrolled(true);
       }
     }
@@ -216,44 +187,32 @@ const CourseDetails = () => {
   useEffect(() => {
     const loadCourse = async () => {
       try {
-        console.log("Loading course with ID:", id);
-
         // Utiliser la nouvelle fonction fetchCourseById qui récupère également les modules et évaluations
         const courseWithModules = await fetchCourseById(id);
 
         if (courseWithModules) {
-          console.log("Course found with fetchCourseById:", courseWithModules);
           setCourse(courseWithModules);
           return;
         }
 
         // Si le cours n'est pas trouvé avec fetchCourseById, essayer les anciennes méthodes
-        console.log(
-          "Course not found with fetchCourseById, trying old methods"
-        );
 
         // Tester les chemins Firebase disponibles
         await testFirebasePaths();
 
         // Essayer d'abord de charger depuis les cours
         const coursesData = await fetchCoursesFromDatabase();
-        console.log("Courses data:", coursesData);
 
         let foundCourse = coursesData.find((c) => c.id === id);
-        console.log("Found in courses?", !!foundCourse);
 
         // Si pas trouvé dans les cours, essayer dans les formations
         if (!foundCourse) {
-          console.log("Course not found in courses, trying formations");
           const formationsData = await fetchFormationsFromDatabase();
-          console.log("Formations data:", formationsData);
 
           foundCourse = formationsData.find((f) => f.id === id);
-          console.log("Found in formations?", !!foundCourse);
 
           // Adapter le format si c'est une formation
           if (foundCourse) {
-            console.log("Adapting formation to course format");
             // Adapter les propriétés pour correspondre au format attendu
             foundCourse.title = foundCourse.titre || "Formation";
             foundCourse.duration = foundCourse.duree
@@ -284,11 +243,6 @@ const CourseDetails = () => {
 
         // Si aucun cours n'est trouvé, créer un cours factice basé sur l'ID
         if (!foundCourse) {
-          console.log(
-            "No course found with ID:",
-            id,
-            "- creating dummy course"
-          );
           foundCourse = {
             id: id,
             title: `Formation ${id}`,
@@ -385,10 +339,8 @@ const CourseDetails = () => {
           };
         }
 
-        console.log("Final course data:", foundCourse);
         setCourse(foundCourse);
       } catch (error) {
-        console.error("Error loading course:", error);
         // En cas d'erreur, créer un cours factice
         const dummyCourse = {
           id: id,
@@ -498,10 +450,6 @@ const CourseDetails = () => {
 
     // Vérifier si l'utilisateur est déjà inscrit au cours
     try {
-      console.log(
-        `Checking if user is already enrolled in course ${course.id}`
-      );
-
       // Vérifier directement dans elearning/enrollments/byCourse/{courseId}/{userId}
       const enrollmentRef = ref(
         database,
@@ -510,9 +458,6 @@ const CourseDetails = () => {
       const enrollmentSnapshot = await get(enrollmentRef);
 
       if (enrollmentSnapshot.exists()) {
-        console.log(
-          `User is already enrolled in course ${course.id} (found in elearning/enrollments)`
-        );
         setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
         setIsEnrolled(true);
         return;
@@ -526,9 +471,6 @@ const CourseDetails = () => {
       const userEnrollmentSnapshot = await get(userEnrollmentRef);
 
       if (userEnrollmentSnapshot.exists()) {
-        console.log(
-          `User is already enrolled in course ${course.id} (found in Elearning/Enrollments/byUser)`
-        );
         setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
         setIsEnrolled(true);
         return;
@@ -542,9 +484,6 @@ const CourseDetails = () => {
       const progressionSnapshot = await get(progressionRef);
 
       if (progressionSnapshot.exists()) {
-        console.log(
-          `User has progression data for course ${course.id}, already enrolled`
-        );
         setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
         setIsEnrolled(true);
         return;
@@ -560,7 +499,6 @@ const CourseDetails = () => {
 
       for (const path of legacyPaths) {
         try {
-          console.log(`Checking legacy path ${path} for enrollment`);
           const legacyRef = ref(database, path);
           const legacySnapshot = await get(legacyRef);
 
@@ -570,8 +508,6 @@ const CourseDetails = () => {
             // Si c'est un chemin spécifique au cours
             if (path.includes(`Cours/${course.id}/enrollments`)) {
               if (legacyData[currentUser.uid]) {
-                console.log(`User found in course-specific enrollments`);
-
                 // Migrer l'inscription vers le nouveau format
                 try {
                   await set(enrollmentRef, {
@@ -585,11 +521,7 @@ const CourseDetails = () => {
                     courseId: course.id,
                     enrolledAt: new Date().toISOString(),
                   });
-
-                  console.log(`Migrated enrollment to new format`);
-                } catch (migrationError) {
-                  console.error(`Error migrating enrollment:`, migrationError);
-                }
+                } catch (migrationError) {}
 
                 setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
                 setIsEnrolled(true);
@@ -613,10 +545,6 @@ const CourseDetails = () => {
               );
 
               if (isEnrolled) {
-                console.log(
-                  `User is already enrolled in course ${course.id} (found in ${path})`
-                );
-
                 // Migrer l'inscription vers le nouveau format
                 try {
                   await set(enrollmentRef, {
@@ -630,11 +558,7 @@ const CourseDetails = () => {
                     courseId: course.id,
                     enrolledAt: new Date().toISOString(),
                   });
-
-                  console.log(`Migrated enrollment to new format`);
-                } catch (migrationError) {
-                  console.error(`Error migrating enrollment:`, migrationError);
-                }
+                } catch (migrationError) {}
 
                 setEnrollmentError("Vous êtes déjà inscrit à ce cours.");
                 setIsEnrolled(true);
@@ -642,17 +566,9 @@ const CourseDetails = () => {
               }
             }
           }
-        } catch (pathError) {
-          console.error(`Error checking enrollment in ${path}:`, pathError);
-        }
+        } catch (pathError) {}
       }
-
-      console.log(
-        `User is not enrolled in course ${course.id}, proceeding with enrollment`
-      );
-    } catch (error) {
-      console.error("Error checking enrollment status:", error);
-    }
+    } catch (error) {}
 
     setShowEnrollPopup(true);
   };
@@ -676,7 +592,6 @@ const CourseDetails = () => {
       };
 
       // Vérifier que toutes les propriétés sont définies
-      console.log("Enrollment data:", enrollmentData);
 
       // Enregistrer l'inscription uniquement dans Elearning/Enrollments
       let enrollmentSuccess = false;
@@ -684,9 +599,7 @@ const CourseDetails = () => {
       try {
         // 1. Enregistrer l'inscription dans elearning/enrollments/byCourse/{courseId}/{userId}
         // Cette structure permet de facilement vérifier si un utilisateur est inscrit à un cours spécifique
-        console.log(
-          `Saving enrollment to elearning/enrollments/byCourse/${course.id}/${currentUser.uid}`
-        );
+
         const enrollmentRef = ref(
           database,
           `elearning/enrollments/byCourse/${course.id}/${currentUser.uid}`
@@ -695,15 +608,10 @@ const CourseDetails = () => {
           ...enrollmentData,
           enrollmentId: Date.now().toString(), // Ajouter un ID unique pour l'inscription
         });
-        console.log(
-          `✅ Successfully saved enrollment to elearning/enrollments/byCourse/${course.id}/${currentUser.uid}`
-        );
 
         // 2. Ajouter également une référence dans elearning/enrollments/byUser/{userId}/{courseId}
         // Cette structure permet de facilement récupérer tous les cours auxquels un utilisateur est inscrit
-        console.log(
-          `Saving enrollment reference to elearning/enrollments/byUser/${currentUser.uid}/${course.id}`
-        );
+
         const userEnrollmentRef = ref(
           database,
           `elearning/enrollments/byUser/${currentUser.uid}/${course.id}`
@@ -712,20 +620,15 @@ const CourseDetails = () => {
           courseId: course.id,
           enrolledAt: new Date().toISOString(),
         });
-        console.log(
-          `✅ Successfully saved enrollment reference to elearning/enrollments/byUser/${currentUser.uid}/${course.id}`
-        );
 
         enrollmentSuccess = true;
       } catch (error) {
-        console.error(`❌ Error saving enrollment:`, error);
         setEnrollmentError(`Erreur lors de l'inscription: ${error.message}`);
       }
 
       // Si l'inscription a réussi, initialiser la progression de l'étudiant pour ce cours
       if (enrollmentSuccess) {
         try {
-          console.log(`Initializing progression for course ${course.id}`);
           const progressionRef = ref(
             database,
             `elearning/progress/${currentUser.uid}/${course.id}`
@@ -738,15 +641,12 @@ const CourseDetails = () => {
             completed: false,
             lastUpdated: new Date().toISOString(),
           });
-          console.log("✅ Progression initialized for the course");
         } catch (error) {
-          console.error("❌ Error initializing progression:", error);
           // Une erreur ici n'est pas critique, l'inscription a déjà réussi
         }
 
         // Ajouter une référence dans le cours pour faciliter la gestion côté formateur
         try {
-          console.log(`Adding enrollment reference to course ${course.id}`);
           const courseEnrollmentRef = ref(
             database,
             `elearning/courses/${course.id}/enrollments/${currentUser.uid}`
@@ -755,17 +655,12 @@ const CourseDetails = () => {
             userId: currentUser.uid,
             enrolledAt: new Date().toISOString(),
           });
-          console.log("✅ Enrollment reference added to course");
         } catch (error) {
-          console.error(
-            "❌ Error adding enrollment reference to course:",
-            error
-          );
           // Une erreur ici n'est pas critique, l'inscription a déjà réussi
         }
       } else {
         // L'inscription a échoué
-        console.error("Failed to save enrollment");
+
         setEnrollmentError(
           "Une erreur s'est produite lors de l'inscription. Veuillez réessayer."
         );
@@ -791,7 +686,6 @@ const CourseDetails = () => {
       // Ne pas fermer automatiquement le popup, laisser l'utilisateur cliquer sur le bouton
       // pour qu'il puisse voir le message de succès et comprendre qu'il est maintenant inscrit
     } catch (error) {
-      console.error("Error creating enrollment:", error);
     } finally {
       setEnrollmentLoading(false);
     }
@@ -888,10 +782,6 @@ const CourseDetails = () => {
                       alt={course?.title}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        console.log(
-                          "Popup image failed to load:",
-                          e.target.src
-                        );
                         e.target.src =
                           "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
                       }}
@@ -939,8 +829,10 @@ const CourseDetails = () => {
               >
                 {enrollmentLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Traitement...</span>
+                    <OptimizedLoadingSpinner
+                      size="small"
+                      text="Traitement..."
+                    />
                   </>
                 ) : (
                   "Confirmer l'inscription"
@@ -956,7 +848,7 @@ const CourseDetails = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        <OptimizedLoadingSpinner size="large" text="Chargement du cours..." />
       </div>
     );
   }
@@ -1026,7 +918,6 @@ const CourseDetails = () => {
                 alt={course.title}
                 className="w-full h-[400px] object-cover rounded-xl mb-8"
                 onError={(e) => {
-                  console.log("Image failed to load:", e.target.src);
                   e.target.src =
                     "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
                 }}
@@ -1066,9 +957,7 @@ const CourseDetails = () => {
                         isEnrolled={isEnrolled}
                         onComplete={() => {
                           // Mettre à jour le statut du module
-                          console.log(
-                            `Module ${activeModule.id} marked as completed`
-                          );
+
                           // Recharger le cours pour mettre à jour les modules
                           fetchCourseById(id).then((updatedCourse) => {
                             if (updatedCourse) {
@@ -1118,7 +1007,6 @@ const CourseDetails = () => {
                             course={{ ...course, id }}
                             isEnrolled={isEnrolled}
                             onModuleSelect={(module) => {
-                              console.log("Module selected:", module);
                               if (isEnrolled) {
                                 setActiveModule(module);
                                 setShowModuleContent(true);
@@ -1216,10 +1104,6 @@ const CourseDetails = () => {
                         alt={course.instructor?.name || "Formateur"}
                         className="w-16 h-16 rounded-full object-cover"
                         onError={(e) => {
-                          console.log(
-                            "Instructor avatar failed to load:",
-                            e.target.src
-                          );
                           e.target.src =
                             "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80";
                         }}

@@ -34,7 +34,7 @@ const Course = ({ course, index }) => {
           alt={course.titre || course.title}
           className="w-full h-56 object-cover"
           onError={(e) => {
-            console.log("Course image failed to load:", e.target.src);
+            
             e.target.src =
               "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
           }}
@@ -103,7 +103,7 @@ export const Courses = () => {
         const coursesData = await fetchCoursesFromDatabase();
         setCourses(coursesData);
       } catch (error) {
-        console.error("Error loading courses:", error);
+        
       } finally {
         setLoading(false);
       }

@@ -66,7 +66,7 @@ export const sendMessage = async (
 
     return newMessageRef.key;
   } catch (error) {
-    console.error('Error sending message:', error);
+    
     throw error;
   }
 };
@@ -109,7 +109,7 @@ export const getReceivedMessages = async (userId) => {
 
     return filteredMessages;
   } catch (error) {
-    console.error('Error fetching received messages:', error);
+    
     throw error;
   }
 };
@@ -152,7 +152,7 @@ export const getSentMessages = async (userId) => {
 
     return filteredMessages;
   } catch (error) {
-    console.error('Error fetching sent messages:', error);
+    
     throw error;
   }
 };
@@ -184,7 +184,7 @@ export const markMessageAsRead = async (userId, messageId, isRead = true) => {
 
     await update(messageRef, { read: isRead });
   } catch (error) {
-    console.error('Error updating message status:', error);
+    
     throw error;
   }
 };
@@ -210,7 +210,7 @@ export const deleteMessage = async (userId, messageId, messageType) => {
 
     const snapshot = await get(messageRef);
     if (!snapshot.exists()) {
-        console.warn(`Attempted to delete non-existent message: ${messageId}`);
+        
         return;
     }
     const messageData = snapshot.val();
@@ -227,11 +227,11 @@ export const deleteMessage = async (userId, messageId, messageType) => {
     if (Object.keys(updateData).length > 0) {
         await update(messageRef, updateData);
     } else {
-        console.warn(`No valid delete operation for message ${messageId} by user ${userId}`);
+        
     }
 
   } catch (error) {
-    console.error('Error deleting message:', error);
+    
     throw error;
   }
 };
@@ -341,11 +341,11 @@ export const getAvailableRecipients = async (userId, userRole) => {
     }
 
     // Default: Should not happen if role is valid
-    console.warn('Unknown user role for recipients:', userRole);
+    
     return { admins: [], instructors: [], students: [] };
 
   } catch (error) {
-    console.error('Error fetching available recipients:', error);
+    
     throw error; // Rethrow error to be handled by the calling component
   }
 };

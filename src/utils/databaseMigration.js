@@ -11,7 +11,7 @@ import { ref, get, set, remove } from 'firebase/database';
  */
 export const migrateDatabase = async () => {
   try {
-    console.log("Starting database migration to standardized schema...");
+    
     
     // 1. Migrate users
     await migrateUsers();
@@ -34,10 +34,10 @@ export const migrateDatabase = async () => {
     // 7. Migrate feedback
     await migrateFeedback();
     
-    console.log("Database migration completed successfully!");
+    
     return { success: true, message: "Database migration completed successfully" };
   } catch (error) {
-    console.error("Error during database migration:", error);
+    
     return { success: false, message: `Migration error: ${error.message}` };
   }
 };
@@ -46,7 +46,7 @@ export const migrateDatabase = async () => {
  * Migrate user data to the standardized structure
  */
 const migrateUsers = async () => {
-  console.log("Migrating users...");
+  
   
   try {
     // Create the new users path if it doesn't exist
@@ -124,9 +124,9 @@ const migrateUsers = async () => {
       }
     }
     
-    console.log("User migration completed");
+    
   } catch (error) {
-    console.error("Error migrating users:", error);
+    
     throw error;
   }
 };
@@ -135,7 +135,7 @@ const migrateUsers = async () => {
  * Migrate course data to the standardized structure
  */
 const migrateCourses = async () => {
-  console.log("Migrating courses...");
+  
   
   try {
     // Create the new courses path if it doesn't exist
@@ -213,9 +213,9 @@ const migrateCourses = async () => {
       }
     }
     
-    console.log("Course migration completed");
+    
   } catch (error) {
-    console.error("Error migrating courses:", error);
+    
     throw error;
   }
 };
@@ -224,7 +224,7 @@ const migrateCourses = async () => {
  * Migrate module data to the standardized structure
  */
 const migrateModules = async () => {
-  console.log("Migrating modules...");
+  
   
   try {
     // Create the new modules path if it doesn't exist
@@ -278,9 +278,9 @@ const migrateModules = async () => {
       }
     }
     
-    console.log("Module migration completed");
+    
   } catch (error) {
-    console.error("Error migrating modules:", error);
+    
     throw error;
   }
 };
@@ -327,7 +327,7 @@ const migrateModuleData = async (moduleId, moduleData) => {
  * Migrate evaluation data to the standardized structure
  */
 const migrateEvaluations = async () => {
-  console.log("Migrating evaluations...");
+  
   
   try {
     // Create the new evaluations path if it doesn't exist
@@ -381,9 +381,9 @@ const migrateEvaluations = async () => {
       }
     }
     
-    console.log("Evaluation migration completed");
+    
   } catch (error) {
-    console.error("Error migrating evaluations:", error);
+    
     throw error;
   }
 };
@@ -415,7 +415,7 @@ const migrateEvaluationData = async (evalId, evalData) => {
  * Migrate enrollment data to the standardized structure
  */
 const migrateEnrollments = async () => {
-  console.log("Migrating enrollments...");
+  
   
   try {
     // Create the new enrollments paths if they don't exist
@@ -467,9 +467,9 @@ const migrateEnrollments = async () => {
       }
     }
     
-    console.log("Enrollment migration completed");
+    
   } catch (error) {
-    console.error("Error migrating enrollments:", error);
+    
     throw error;
   }
 };
@@ -517,7 +517,7 @@ const migrateEnrollmentData = async (userId, courseId, enrollmentData) => {
  * Migrate progress data to the standardized structure
  */
 const migrateProgress = async () => {
-  console.log("Migrating progress data...");
+  
   
   try {
     // Create the new progress path if it doesn't exist
@@ -590,9 +590,9 @@ const migrateProgress = async () => {
       }
     }
     
-    console.log("Progress migration completed");
+    
   } catch (error) {
-    console.error("Error migrating progress data:", error);
+    
     throw error;
   }
 };
@@ -601,7 +601,7 @@ const migrateProgress = async () => {
  * Migrate feedback data to the standardized structure
  */
 const migrateFeedback = async () => {
-  console.log("Migrating feedback data...");
+  
   
   try {
     // Create the new feedback path if it doesn't exist
@@ -642,9 +642,9 @@ const migrateFeedback = async () => {
       }
     }
     
-    console.log("Feedback migration completed");
+    
   } catch (error) {
-    console.error("Error migrating feedback data:", error);
+    
     throw error;
   }
 };

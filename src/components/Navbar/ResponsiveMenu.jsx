@@ -74,7 +74,7 @@ const ResponsiveMenu = ({ isOpen, user, userType, userInfo, handleLogout }) => {
                         userType === "admin"
                           ? "/admin/dashboard"
                           : userType === "instructor"
-                          ? "/instructor/dashboard"
+                          ? "/instructor/courses"
                           : "/student/dashboard"
                       }
                       className="hover:text-secondary transition-colors duration-300 flex items-center gap-2"

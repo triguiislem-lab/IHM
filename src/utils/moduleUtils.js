@@ -1,6 +1,7 @@
 import { database } from '../../firebaseConfig';
 import { ref, get, set, push, update, remove } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
+import { getCachedData, setCachedData } from './cacheUtils';
 
 // Ajouter un nouveau module à un cours
 export const addModuleToCourse = async (courseId, moduleData) => {
@@ -54,7 +55,7 @@ export const addModuleToCourse = async (courseId, moduleData) => {
 
     return newModule;
   } catch (error) {
-    console.error('Error adding module to course:', error);
+    
     throw error;
   }
 };
@@ -111,7 +112,7 @@ export const updateModule = async (courseId, moduleId, moduleData) => {
 
     return modules[moduleIndex];
   } catch (error) {
-    console.error('Error updating module:', error);
+    
     throw error;
   }
 };
@@ -161,7 +162,7 @@ export const deleteModule = async (courseId, moduleId) => {
 
     return true;
   } catch (error) {
-    console.error('Error deleting module:', error);
+    
     throw error;
   }
 };
@@ -226,7 +227,7 @@ export const addEvaluationToModule = async (courseId, moduleId, evaluationData) 
 
     return newEvaluation;
   } catch (error) {
-    console.error('Error adding evaluation to module:', error);
+    
     throw error;
   }
 };
@@ -295,7 +296,7 @@ export const updateEvaluation = async (courseId, moduleId, evaluationId, evaluat
 
     return modules[moduleIndex].evaluations[evaluationIndex];
   } catch (error) {
-    console.error('Error updating evaluation:', error);
+    
     throw error;
   }
 };
@@ -360,72 +361,80 @@ export const deleteEvaluation = async (courseId, moduleId, evaluationId) => {
 
     return true;
   } catch (error) {
-    console.error('Error deleting evaluation:', error);
+    
     throw error;
   }
 };
 
-// Récupérer les cours d'un formateur
+// Récupérer les cours d'un formateur avec mise en cache
 export const fetchInstructorCourses = async (instructorId) => {
   try {
+    // Vérifier si les données sont en cache
+    const cacheKey = `instructor_courses_${instructorId}`;
+    const cachedData = getCachedData(cacheKey);
+
+    if (cachedData) {
+      
+      return cachedData;
+    }
+
+    
     const coursesRef = ref(database, 'elearning/courses');
     const snapshot = await get(coursesRef);
 
     if (!snapshot.exists()) {
+      
       return [];
     }
 
     const allCourses = snapshot.val();
     const instructorCourses = [];
 
+    // Préparer les promesses pour les requêtes d'inscriptions
+    const enrollmentPromises = [];
+    const courseEntries = [];
+
     // Parcourir tous les cours et filtrer ceux du formateur
     for (const courseId in allCourses) {
       const course = allCourses[courseId];
       if (course.formateur === instructorId || course.instructorId === instructorId) {
-        // Récupérer le nombre d'étudiants inscrits à ce cours
-        let studentCount = 0;
+        courseEntries.push({ courseId, course });
 
-        // Vérifier dans elearning/enrollments/byCourse
-        try {
-          const enrollmentsRef = ref(database, `elearning/enrollments/byCourse/${courseId}`);
-          const enrollmentsSnapshot = await get(enrollmentsRef);
-
-          if (enrollmentsSnapshot.exists()) {
-            const enrollments = enrollmentsSnapshot.val();
-            studentCount = Object.keys(enrollments).length;
-          }
-        } catch (enrollmentError) {
-          console.error(`Error fetching enrollments for course ${courseId}:`, enrollmentError);
-        }
-
-        // Si aucune inscription n'est trouvée, vérifier dans l'ancienne structure
-        if (studentCount === 0) {
-          try {
-            const legacyEnrollmentsRef = ref(database, `Elearning/Enrollments/${courseId}`);
-            const legacyEnrollmentsSnapshot = await get(legacyEnrollmentsRef);
-
-            if (legacyEnrollmentsSnapshot.exists()) {
-              const legacyEnrollments = legacyEnrollmentsSnapshot.val();
-              studentCount = Object.keys(legacyEnrollments).length;
-            }
-          } catch (legacyError) {
-            console.error(`Error fetching legacy enrollments for course ${courseId}:`, legacyError);
-          }
-        }
-
-        // Ajouter le cours avec le nombre d'étudiants
-        instructorCourses.push({
-          id: courseId,
-          ...course,
-          students: studentCount
-        });
+        // Préparer la promesse pour récupérer les inscriptions
+        const enrollmentsRef = ref(database, `elearning/enrollments/byCourse/${courseId}`);
+        enrollmentPromises.push(get(enrollmentsRef));
       }
     }
 
+    // Exécuter toutes les requêtes d'inscriptions en parallèle
+    const enrollmentResults = await Promise.all(enrollmentPromises);
+
+    // Traiter les résultats
+    courseEntries.forEach(({ courseId, course }, index) => {
+      let studentCount = 0;
+
+      // Récupérer le nombre d'étudiants
+      const enrollmentSnapshot = enrollmentResults[index];
+      if (enrollmentSnapshot && enrollmentSnapshot.exists()) {
+        const enrollments = enrollmentSnapshot.val();
+        studentCount = Object.keys(enrollments).length;
+      }
+
+      // Ajouter le cours avec le nombre d'étudiants
+      instructorCourses.push({
+        id: courseId,
+        ...course,
+        students: studentCount
+      });
+    });
+
+    // Mettre en cache les résultats
+    setCachedData(cacheKey, instructorCourses);
+
     return instructorCourses;
   } catch (error) {
-    console.error('Error fetching instructor courses:', error);
-    throw error;
+    
+    return [];
   }
 };
 
@@ -488,7 +497,7 @@ export const addResourceToModule = async (courseId, moduleId, resourceData) => {
 
     return newResource;
   } catch (error) {
-    console.error('Error adding resource to module:', error);
+    
     throw error;
   }
 };
@@ -553,7 +562,7 @@ export const deleteResource = async (courseId, moduleId, resourceId) => {
 
     return true;
   } catch (error) {
-    console.error('Error deleting resource:', error);
+    
     throw error;
   }
 };

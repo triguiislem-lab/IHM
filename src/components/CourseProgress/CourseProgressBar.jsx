@@ -79,10 +79,7 @@ const CourseProgressBar = ({ courseId }) => {
                 }
               }
             } catch (moduleError) {
-              console.error(
-                `Error checking progression for module ${moduleId}:`,
-                moduleError
-              );
+              
             }
           }
 
@@ -104,7 +101,7 @@ const CourseProgressBar = ({ courseId }) => {
           setTotalScore(0);
         }
       } catch (error) {
-        console.error("Error fetching course progress:", error);
+        
         setError("Erreur lors de la récupération de la progression du cours");
       } finally {
         setLoading(false);

@@ -26,7 +26,7 @@ const Login = () => {
       navigate(from, { replace: true });
     } catch (error) {
       setError("Email ou mot de passe incorrect");
-      console.error("Error logging in:", error);
+      
     } finally {
       setLoading(false);
     }

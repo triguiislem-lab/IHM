@@ -32,7 +32,7 @@ const BASE_PATH = '/elearning';
  */
 export const fetchData = async (path) => {
   try {
-    console.log(`Fetching data from ${BASE_PATH}/${path}`);
+    
     const dataRef = ref(database, `${BASE_PATH}/${path}`);
     const snapshot = await get(dataRef);
 
@@ -45,10 +45,10 @@ export const fetchData = async (path) => {
       }));
     }
     
-    console.log(`No data found at ${BASE_PATH}/${path}`);
+    
     return [];
   } catch (error) {
-    console.error(`Error fetching data from ${BASE_PATH}/${path}:`, error);
+    
     throw error;
   }
 };
@@ -61,7 +61,7 @@ export const fetchData = async (path) => {
  */
 export const fetchById = async (path, id) => {
   try {
-    console.log(`Fetching item with ID ${id} from ${BASE_PATH}/${path}`);
+    
     const itemRef = ref(database, `${BASE_PATH}/${path}/${id}`);
     const snapshot = await get(itemRef);
 
@@ -73,10 +73,10 @@ export const fetchById = async (path, id) => {
       };
     }
     
-    console.log(`No item found with ID ${id} at ${BASE_PATH}/${path}`);
+    
     return null;
   } catch (error) {
-    console.error(`Error fetching item with ID ${id} from ${BASE_PATH}/${path}:`, error);
+    
     throw error;
   }
 };
@@ -110,10 +110,10 @@ export const createItem = async (path, data, validateFn, standardizeFn) => {
     // Save to database
     await set(newItemRef, standardizedData);
     
-    console.log(`Created new item with ID ${newId} at ${BASE_PATH}/${path}`);
+    
     return newId;
   } catch (error) {
-    console.error(`Error creating item at ${BASE_PATH}/${path}:`, error);
+    
     throw error;
   }
 };
@@ -159,10 +159,10 @@ export const updateItem = async (path, id, data, validateFn, standardizeFn) => {
     // Update in database
     await update(itemRef, standardizedData);
     
-    console.log(`Updated item with ID ${id} at ${BASE_PATH}/${path}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error updating item with ID ${id} at ${BASE_PATH}/${path}:`, error);
+    
     throw error;
   }
 };
@@ -186,10 +186,10 @@ export const deleteItem = async (path, id) => {
     // Delete from database
     await remove(itemRef);
     
-    console.log(`Deleted item with ID ${id} from ${BASE_PATH}/${path}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error deleting item with ID ${id} from ${BASE_PATH}/${path}:`, error);
+    
     throw error;
   }
 };
@@ -308,7 +308,7 @@ export const fetchModulesByCourse = async (courseId) => {
     const allModules = await fetchModules();
     return allModules.filter(module => module.courseId === courseId);
   } catch (error) {
-    console.error(`Error fetching modules for course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -387,7 +387,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
     const allEvaluations = await fetchEvaluations();
     return allEvaluations.filter(evaluation => evaluation.moduleId === moduleId);
   } catch (error) {
-    console.error(`Error fetching evaluations for module ${moduleId}:`, error);
+    
     throw error;
   }
 };
@@ -451,7 +451,7 @@ export const fetchEnrollments = async () => {
     
     return flatEnrollments;
   } catch (error) {
-    console.error('Error fetching enrollments:', error);
+    
     throw error;
   }
 };
@@ -477,7 +477,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
     
     return [];
   } catch (error) {
-    console.error(`Error fetching enrollments for user ${userId}:`, error);
+    
     throw error;
   }
 };
@@ -503,7 +503,7 @@ export const fetchEnrollmentsByCourse = async (courseId) => {
     
     return [];
   } catch (error) {
-    console.error(`Error fetching enrollments for course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -568,10 +568,10 @@ export const enrollUserInCourse = async (userId, courseId) => {
       }
     }
     
-    console.log(`Enrolled user ${userId} in course ${courseId}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error enrolling user ${userId} in course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -598,10 +598,10 @@ export const updateEnrollmentStatus = async (userId, courseId, status) => {
     const byUserRef = ref(database, `${BASE_PATH}/enrollments/byUser/${userId}/${courseId}`);
     await update(byUserRef, { status });
     
-    console.log(`Updated enrollment status for user ${userId} in course ${courseId} to ${status}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error updating enrollment status for user ${userId} in course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -643,7 +643,7 @@ export const fetchUserCourseProgress = async (userId, courseId) => {
     
     return null;
   } catch (error) {
-    console.error(`Error fetching progress for user ${userId} and course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -690,10 +690,10 @@ export const initializeCourseProgress = async (userId, courseId, modules = []) =
       }
     }
     
-    console.log(`Initialized progress for user ${userId} in course ${courseId}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error initializing progress for user ${userId} in course ${courseId}:`, error);
+    
     throw error;
   }
 };
@@ -718,10 +718,10 @@ export const updateModuleProgress = async (userId, courseId, moduleId, data) => 
     // Recalculate course progress
     await recalculateCourseProgress(userId, courseId);
     
-    console.log(`Updated progress for module ${moduleId} for user ${userId} in course ${courseId}`);
+    
     return true;
   } catch (error) {
-    console.error(`Error updating module progress:`, error);
+    
     throw error;
   }
 };
@@ -764,7 +764,7 @@ export const recalculateCourseProgress = async (userId, courseId) => {
     
     return true;
   } catch (error) {
-    console.error(`Error recalculating course progress:`, error);
+    
     throw error;
   }
 };
@@ -789,7 +789,7 @@ export const fetchFeedbackByCourse = async (courseId) => {
     const allFeedback = await fetchFeedback();
     return allFeedback.filter(feedback => feedback.courseId === courseId);
   } catch (error) {
-    console.error(`Error fetching feedback for course ${courseId}:`, error);
+    
     throw error;
   }
 };

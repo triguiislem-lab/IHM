@@ -20,7 +20,8 @@ import AdminDashboard from "./pages/Dashboard/AdminDashboard";
 import DatabaseCleanup from "./pages/Admin/DatabaseCleanup";
 import DatabaseMigration from "./pages/Admin/DatabaseMigration";
 import SpecialitesManager from "./pages/Admin/SpecialitesManager";
-import CourseForm from "./pages/Admin/CourseForm";
+import AdminCourseForm from "./pages/Admin/CourseForm";
+import InstructorCourseForm from "./pages/Instructor/CourseForm";
 import InstructorCourses from "./pages/Instructor/MyCourses";
 import InstructorCourseManagement from "./pages/Instructor/InstructorCourseManagement";
 import MessagesPage from "./pages/Messages/MessagesPage";
@@ -108,11 +109,17 @@ const App = () => {
                     <Route path="dashboard" element={<InstructorDashboard />} />
                     <Route path="courses" element={<InstructorCourses />} />
                     <Route
-                      path="course-management"
+                      path="course-management/:id"
                       element={<InstructorCourseManagement />}
                     />
-                    <Route path="course-form" element={<CourseForm />} />
-                    <Route path="course-form/:id" element={<CourseForm />} />
+                    <Route
+                      path="course-form"
+                      element={<InstructorCourseForm />}
+                    />
+                    <Route
+                      path="course-form/:id"
+                      element={<InstructorCourseForm />}
+                    />
                     <Route path="profile" element={<Profile />} />
                     <Route path="edit-profile" element={<EditProfile />} />
                     <Route path="messages" element={<MessagesPage />} />
@@ -144,8 +151,11 @@ const App = () => {
                       path="specialites"
                       element={<SpecialitesManager />}
                     />
-                    <Route path="course-form" element={<CourseForm />} />
-                    <Route path="course-form/:id" element={<CourseForm />} />
+                    <Route path="course-form" element={<AdminCourseForm />} />
+                    <Route
+                      path="course-form/:id"
+                      element={<AdminCourseForm />}
+                    />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="profile" element={<Profile />} />
                     <Route path="edit-profile" element={<EditProfile />} />

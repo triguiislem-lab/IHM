@@ -12,6 +12,8 @@ import {
 } from "react-icons/md";
 import { motion } from "framer-motion";
 import ModuleManager from "../../components/CourseModules/ModuleManager";
+import { getCachedData, setCachedData } from "../../utils/cacheUtils";
+import OptimizedLoadingSpinner from "../../components/Common/OptimizedLoadingSpinner";
 import {
   fetchCourseById,
   fetchCourseEnrollments,
@@ -32,11 +34,28 @@ const InstructorCourseManagement = () => {
   const [success, setSuccess] = useState("");
 
   const loadCourseData = useCallback(async () => {
-    if (authLoading || !user || role !== "instructor") {
-      if (!authLoading && role !== "instructor") {
-        setPermissionError("Accès réservé aux formateurs.");
-        setLoadingData(false);
-      }
+    // Vérifier si l'utilisateur est un formateur (plusieurs formats possibles)
+    const isInstructor =
+      role === "instructor" ||
+      role === "formateur" ||
+      user?.userType === "formateur" ||
+      user?.role === "instructor" ||
+      user?.role === "formateur" ||
+      user?.normalizedRole === "instructor";
+
+    if (authLoading) {
+      return; // Attendre que l'authentification soit chargée
+    }
+
+    if (!user) {
+      setPermissionError("Vous devez être connecté pour accéder à cette page.");
+      setLoadingData(false);
+      return;
+    }
+
+    if (!isInstructor) {
+      setPermissionError("Accès réservé aux formateurs.");
+      setLoadingData(false);
       return;
     }
 
@@ -45,6 +64,17 @@ const InstructorCourseManagement = () => {
       setError("");
       setPermissionError("");
 
+      // Vérifier si les données sont en cache
+      const cacheKey = `course_${courseId}`;
+      const cachedData = getCachedData(cacheKey);
+
+      if (cachedData) {
+        
+        setCourse(cachedData);
+        setLoadingData(false);
+        return;
+      }
+
       const courseData = await fetchCourseById(courseId);
 
       if (!courseData) {
@@ -52,6 +82,9 @@ const InstructorCourseManagement = () => {
         setLoadingData(false);
         return;
       }
+
+      // Mettre en cache les données du cours
+      setCachedData(cacheKey, courseData);
 
       const instructorId = courseData.instructorId || courseData.formateur;
       if (instructorId !== user.uid) {
@@ -65,7 +98,7 @@ const InstructorCourseManagement = () => {
       setCourse(courseData);
       setEnrollments(courseEnrollments);
     } catch (err) {
-      console.error("Error loading course management data:", err);
+      
       setError(`Erreur lors du chargement des données: ${err.message}`);
     } finally {
       setLoadingData(false);
@@ -84,7 +117,7 @@ const InstructorCourseManagement = () => {
       setSuccess("Modules mis à jour avec succès");
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      console.error("Error refreshing course data:", err);
+      
       setError(`Erreur lors de la mise à jour: ${err.message}`);
     } finally {
       setLoadingData(false);
@@ -95,8 +128,11 @@ const InstructorCourseManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[60vh]">
-        <LoadingSpinner />
+      <div className="container mx-auto px-4 py-8 flex flex-col justify-center items-center min-h-[60vh]">
+        <OptimizedLoadingSpinner size="large" text="Chargement du cours..." />
+        <p className="text-gray-500 text-sm mt-4">
+          Chargement des modules et des ressources...
+        </p>
       </div>
     );
   }
@@ -170,7 +206,7 @@ const InstructorCourseManagement = () => {
             Mes cours
           </button>
           <Link
-            to={`/admin/course/${course.id}/edit`}
+            to={`/instructor/course-form/${course.id}`}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-300 text-sm"
           >
             <MdEdit />

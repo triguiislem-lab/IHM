@@ -25,18 +25,18 @@ const Profile = () => {
     const loadUserInfo = async () => {
       try {
         const user = auth.currentUser;
-        console.log("Current user:", user);
+        
 
         if (user) {
           // Récupérer les informations utilisateur depuis Firebase
           const info = await fetchCompleteUserInfo(user.uid);
-          console.log("User info loaded:", info);
+          
 
           // S'assurer que info n'est pas null avant de continuer
           if (info) {
             setUserInfo(info);
           } else {
-            console.error("User info is null");
+            
             setUserInfo({
               firstName: "Utilisateur",
               lastName: "",
@@ -52,11 +52,11 @@ const Profile = () => {
             });
           }
         } else {
-          console.error("No current user found");
+          
           setUserInfo(null);
         }
       } catch (error) {
-        console.error("Error loading user info:", error);
+        
         // Créer un utilisateur par défaut en cas d'erreur
         if (auth.currentUser) {
           setUserInfo({
@@ -82,7 +82,7 @@ const Profile = () => {
 
     // Ajouter un écouteur d'événement pour les changements d'authentification
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log("Auth state changed:", user);
+      
       if (user) {
         loadUserInfo();
       } else {

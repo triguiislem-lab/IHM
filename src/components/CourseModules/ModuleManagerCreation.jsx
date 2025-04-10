@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import OptimizedLoadingSpinner from "../Common/OptimizedLoadingSpinner";
 import {
   MdAdd,
   MdSave,
@@ -97,7 +98,6 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       // Effacer le message de succès après 3 secondes
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      console.error("Error adding module:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
 
   const handleAddQuestion = (e) => {
     e.preventDefault();
-    console.log("handleAddQuestion called"); // Debug log
+    // Debug log
 
     // Vérifier que la question est valide
     if (!currentQuestion.question.trim()) {
@@ -157,7 +157,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       setEditingQuestionIndex(-1);
 
       // Fermer explicitement le popup
-      console.log("Closing popup"); // Debug log
+      // Debug log
       setShowAddQuestion(false);
 
       setSuccess("Question ajoutée avec succès");
@@ -165,7 +165,6 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       // Effacer le message de succès après 3 secondes
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      console.error("Error adding question:", error);
       setError(`Erreur: ${error.message}`);
     }
   };
@@ -264,7 +263,6 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       // Effacer le message de succès après 3 secondes
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      console.error("Error adding evaluation:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -326,7 +324,6 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
       // Effacer le message de succès après 3 secondes
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
-      console.error("Error adding resource:", error);
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
@@ -726,7 +723,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                   disabled={loading}
                 >
                   {loading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <OptimizedLoadingSpinner size="small" text="" />
                   ) : (
                     <MdSave />
                   )}
@@ -990,7 +987,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
           onClick={(e) => {
             // Fermer le popup uniquement si l'utilisateur clique sur l'arrière-plan (pas sur le contenu)
             if (e.target === e.currentTarget) {
-              console.log("Background clicked"); // Debug log
+              // Debug log
               setShowAddQuestion(false);
               setEditingQuestionIndex(-1);
               setCurrentQuestion({
@@ -1108,7 +1105,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log("Cancel button clicked"); // Debug log
+                    // Debug log
                     setShowAddQuestion(false);
                     setEditingQuestionIndex(-1);
                     setCurrentQuestion({
@@ -1137,7 +1134,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log("Extra close button clicked"); // Debug log
+                    // Debug log
                     setShowAddQuestion(false);
                     setEditingQuestionIndex(-1);
                     setCurrentQuestion({
@@ -1261,7 +1258,7 @@ const ModuleManagerCreation = ({ modules, setModules }) => {
                   disabled={loading}
                 >
                   {loading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <OptimizedLoadingSpinner size="small" text="" />
                   ) : (
                     <MdSave />
                   )}

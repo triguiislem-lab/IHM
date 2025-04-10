@@ -99,19 +99,17 @@ const ModulePage = () => {
           let isUserEnrolled = false;
           for (const path of enrollmentPaths) {
             try {
-              console.log(`Checking enrollment path: ${path}`);
+              
               const pathRef = ref(database, path);
               const snapshot = await get(pathRef);
 
               if (snapshot.exists()) {
-                console.log(
-                  `User is enrolled in course ${courseId} (found in ${path})`
-                );
+                
                 isUserEnrolled = true;
                 break;
               }
             } catch (error) {
-              console.error(`Error checking enrollment in ${path}:`, error);
+              
             }
           }
 
@@ -121,9 +119,7 @@ const ModulePage = () => {
               `enrolled_${auth.currentUser.uid}_${courseId}`
             ) === "true";
           if (enrolledInLocalStorage) {
-            console.log(
-              `User is enrolled in course ${courseId} (found in localStorage)`
-            );
+            
             isUserEnrolled = true;
           }
 
@@ -140,7 +136,7 @@ const ModulePage = () => {
 
         setLoading(false);
       } catch (error) {
-        console.error("Error fetching data:", error);
+        
         setError(
           `Erreur lors de la récupération des données: ${error.message}`
         );
@@ -152,7 +148,7 @@ const ModulePage = () => {
   }, [courseId, moduleId, database, auth.currentUser]);
 
   const handleModuleComplete = (score) => {
-    console.log(`Module completed with score: ${score}`);
+    
     // Vous pouvez ajouter ici une logique pour mettre à jour la progression
   };
 

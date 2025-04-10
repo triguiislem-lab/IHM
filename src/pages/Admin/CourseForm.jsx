@@ -156,7 +156,7 @@ const CourseForm = () => {
           }));
         }
       } catch (err) {
-        console.error("Error loading course data:", err);
+        
         setError("Erreur lors du chargement des données du cours.");
       } finally {
         setLoadingData(false);
@@ -294,7 +294,7 @@ const CourseForm = () => {
         navigate(`/courses/${courseId}`); // Redirect to course page
       }, 1500);
     } catch (err) {
-      console.error("Error saving course:", err);
+      
       setError(`Erreur lors de la sauvegarde: ${err.message}`);
     } finally {
       setSaving(false);

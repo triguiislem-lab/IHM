@@ -34,7 +34,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
         if (snapshot.exists()) {
           const attemptData = snapshot.val();
           setPreviousAttempt(attemptData);
-          console.log("Previous attempt found:", attemptData);
+          
 
           // Stocker le meilleur score
           if (attemptData.bestScore) {
@@ -53,7 +53,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
 
         if (courseSnapshot.exists()) {
           const courseAttemptData = courseSnapshot.val();
-          console.log("Course attempt found:", courseAttemptData);
+          
 
           // Mettre à jour le meilleur score si nécessaire
           if (
@@ -66,7 +66,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
           }
         }
       } catch (error) {
-        console.error("Error checking previous attempts:", error);
+        
       }
     };
 
@@ -138,9 +138,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
             `Elearning/Evaluations/${moduleId}/${auth.currentUser.uid}`
           );
           await set(attemptRef, attemptData);
-          console.log(
-            `Evaluation results saved to Elearning/Evaluations/${moduleId}/${auth.currentUser.uid}`
-          );
+          
 
           // Enregistrer également dans le module lui-même
           const moduleEvalRef = ref(
@@ -148,9 +146,9 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
             `Elearning/Cours/${courseId}/modules/${moduleId}/evaluations/${auth.currentUser.uid}`
           );
           await set(moduleEvalRef, attemptData);
-          console.log(`Evaluation results saved to module evaluations`);
+          
         } catch (error) {
-          console.error("Error saving evaluation results:", error);
+          
         }
 
         // Mettre à jour le statut du module si le score est suffisant
@@ -166,7 +164,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
               score: finalScore,
               lastUpdated: new Date().toISOString(),
             });
-            console.log(`Module status updated in Elearning/Progression`);
+            
 
             // Mettre à jour le statut directement dans le module
             const moduleRef = ref(
@@ -174,9 +172,9 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
               `Elearning/Cours/${courseId}/modules/${moduleId}/status`
             );
             await set(moduleRef, "completed");
-            console.log(`Module status updated directly in the module`);
+            
           } catch (error) {
-            console.error("Error updating module status:", error);
+            
           }
 
           // Appeler le callback onComplete si fourni
@@ -188,7 +186,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
 
       setShowResults(true);
     } catch (error) {
-      console.error("Error submitting quiz:", error);
+      
       setError(
         "Une erreur s'est produite lors de la soumission du quiz. Veuillez réessayer."
       );
@@ -268,7 +266,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
           score: bestScore,
           lastUpdated: new Date().toISOString(),
         });
-        console.log(`Module status updated in Elearning/Progression`);
+        
 
         // Mettre à jour le statut directement dans le module
         const moduleRef = ref(
@@ -276,7 +274,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
           `Elearning/Cours/${courseId}/modules/${moduleId}/status`
         );
         await set(moduleRef, "completed");
-        console.log(`Module status updated directly in the module`);
+        
 
         // Vérifier si tous les modules du cours sont complétés
         await checkCourseCompletion();
@@ -290,7 +288,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
         onComplete(bestScore);
       }
     } catch (error) {
-      console.error("Error confirming score:", error);
+      
       setError("Une erreur s'est produite lors de la confirmation du score.");
       setLoading(false);
     }
@@ -332,9 +330,7 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
           completedModules > 0 ? totalScore / completedModules : 0;
         const allModulesCompleted = completedModules === moduleIds.length;
 
-        console.log(
-          `Course completion: ${completedModules}/${moduleIds.length} modules completed, average score: ${averageScore}%`
-        );
+        
 
         // Mettre à jour le statut du cours si tous les modules sont complétés
         if (allModulesCompleted) {
@@ -361,13 +357,11 @@ const ModuleQuiz = ({ moduleId, courseId, quiz, onComplete }) => {
             passed: averageScore >= 70,
           });
 
-          console.log(
-            `Course status updated: completed with score ${averageScore}%`
-          );
+          
         }
       }
     } catch (error) {
-      console.error("Error checking course completion:", error);
+      
     }
   };
 

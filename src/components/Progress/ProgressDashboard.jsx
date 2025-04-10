@@ -47,7 +47,7 @@ const ProgressDashboard = () => {
                   lastUpdated: allProgress[courseId].lastUpdated
                 };
               } catch (error) {
-                console.error(`Error fetching course ${courseId}:`, error);
+                
                 return null;
               }
             })
@@ -60,7 +60,7 @@ const ProgressDashboard = () => {
           setCourseProgress([]);
         }
       } catch (error) {
-        console.error("Error loading progress:", error);
+        
         setError("Impossible de charger votre progression. Veuillez réessayer.");
       } finally {
         setLoading(false);

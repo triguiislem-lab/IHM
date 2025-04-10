@@ -1,11 +1,9 @@
 import React from "react";
+import OptimizedLoadingSpinner from "./OptimizedLoadingSpinner";
 
-const LoadingSpinner = () => {
-  return (
-    <div className="flex justify-center items-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-    </div>
-  );
+// Composant de compatibilité pour remplacer l'ancien LoadingSpinner
+const LoadingSpinner = ({ text = "Chargement en cours..." }) => {
+  return <OptimizedLoadingSpinner size="large" text={text} />;
 };
 
 export default LoadingSpinner;

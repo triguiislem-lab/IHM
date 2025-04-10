@@ -82,7 +82,7 @@ const InstructorProfile = ({ instructorId, courseId, courseName }) => {
           setError('Formateur non trouvé');
         }
       } catch (error) {
-        console.error('Error fetching instructor data:', error);
+        
         setError('Erreur lors de la récupération des informations du formateur');
       } finally {
         setLoading(false);

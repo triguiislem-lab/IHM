@@ -62,13 +62,9 @@ const ModuleEvaluation = ({
             }));
 
           setEvaluations(filteredEvaluations);
-          console.log(
-            `Found ${filteredEvaluations.length} evaluations for module ${moduleId}`
-          );
+          
         } else {
-          console.log(
-            `No evaluations found for module ${moduleId}, checking in course modules`
-          );
+          
 
           // Vérifier dans le chemin standardisé
           if (courseId) {
@@ -95,29 +91,22 @@ const ModuleEvaluation = ({
                 }));
 
               setEvaluations(filteredEvaluations);
-              console.log(
-                `Found ${filteredEvaluations.length} evaluations in course module ${moduleId}`
-              );
+              
             } else {
-              console.log(
-                `No evaluations found in course module ${moduleId}, generating static quiz`
-              );
+              
 
               // Générer un quiz statique si aucune évaluation n'est trouvée
               await generateStaticQuiz();
             }
           } else {
-            console.log(`No courseId provided, generating static quiz`);
+            
 
             // Générer un quiz statique si aucune évaluation n'est trouvée
             await generateStaticQuiz();
           }
         }
       } catch (error) {
-        console.error(
-          `Error fetching evaluations for module ${moduleId}:`,
-          error
-        );
+        
         setError(
           `Erreur lors de la récupération des évaluations: ${error.message}`
         );
@@ -160,7 +149,7 @@ const ModuleEvaluation = ({
       );
       await set(quizRef, staticQuiz);
 
-      console.log(`Static quiz generated and saved for module ${moduleId}`);
+      
 
       // Mettre à jour les évaluations
       const updatedEvaluations = [
@@ -170,7 +159,7 @@ const ModuleEvaluation = ({
       setEvaluations(updatedEvaluations);
       setGeneratingQuiz(false);
     } catch (error) {
-      console.error(`Error generating quiz:`, error);
+      
       setError(`Erreur lors de la génération du quiz: ${error.message}`);
       setGeneratingQuiz(false);
     }
@@ -192,7 +181,7 @@ const ModuleEvaluation = ({
           setModuleProgress(snapshot.val());
         }
       } catch (error) {
-        console.error(`Error fetching module progress:`, error);
+        
       }
     };
 
@@ -201,7 +190,7 @@ const ModuleEvaluation = ({
 
   // Gérer la complétion d'une évaluation
   const handleEvaluationComplete = async (score) => {
-    console.log(`Evaluation completed with score: ${score}`);
+    
 
     try {
       // Mettre à jour le statut du module dans l'état local
@@ -252,12 +241,12 @@ const ModuleEvaluation = ({
 
           // Enregistrer la progression mise à jour
           await set(progressRef, updatedProgress);
-          console.log(`Module progress updated in Firebase:`, updatedProgress);
+          
 
           // Vérifier si tous les modules du cours sont complétés
           await checkCourseCompletion(score);
         } catch (firebaseError) {
-          console.error("Error updating progress in Firebase:", firebaseError);
+          
         }
       }
 
@@ -269,7 +258,7 @@ const ModuleEvaluation = ({
         onComplete(score);
       }
     } catch (error) {
-      console.error("Error handling evaluation completion:", error);
+      
       setError(
         "Une erreur s'est produite lors de la mise à jour de votre progression."
       );
@@ -280,9 +269,7 @@ const ModuleEvaluation = ({
   const checkCourseCompletion = async (currentModuleScore) => {
     try {
       if (!auth.currentUser || !courseId) {
-        console.log(
-          "Cannot check course completion: missing user or course ID"
-        );
+        
         return null;
       }
 
@@ -291,7 +278,7 @@ const ModuleEvaluation = ({
       const coursesSnapshot = await get(coursesRef);
 
       if (!coursesSnapshot.exists()) {
-        console.log(`No modules found for course ${courseId}`);
+        
         return null;
       }
 
@@ -299,7 +286,7 @@ const ModuleEvaluation = ({
       const moduleIds = Object.keys(modules);
 
       if (moduleIds.length === 0) {
-        console.log(`Course ${courseId} has no modules`);
+        
         return null;
       }
 
@@ -337,10 +324,7 @@ const ModuleEvaluation = ({
             }
           }
         } catch (moduleError) {
-          console.error(
-            `Error checking progression for module ${modId}:`,
-            moduleError
-          );
+          
         }
       }
 
@@ -349,11 +333,7 @@ const ModuleEvaluation = ({
         completedModules > 0 ? totalScore / completedModules : 0;
       const allModulesCompleted = completedModules === moduleIds.length;
 
-      console.log(
-        `Course completion: ${completedModules}/${
-          moduleIds.length
-        } modules completed, average score: ${averageScore.toFixed(1)}%`
-      );
+      
 
       // Enregistrer les détails de progression pour chaque module
       const progressDetails = {
@@ -393,11 +373,7 @@ const ModuleEvaluation = ({
             details: progressDetails,
           });
 
-          console.log(
-            `Course status updated: completed with score ${averageScore.toFixed(
-              1
-            )}%`
-          );
+          
 
           // Afficher un message de succès ou d'échec
           if (averageScore >= 70) {
@@ -416,7 +392,7 @@ const ModuleEvaluation = ({
             );
           }
         } catch (updateError) {
-          console.error("Error updating course status:", updateError);
+          
         }
       } else {
         // Mettre à jour la progression partielle
@@ -432,11 +408,9 @@ const ModuleEvaluation = ({
             lastUpdated: new Date().toISOString(),
             details: progressDetails,
           });
-          console.log(
-            `Course partial progress updated: ${completedModules}/${moduleIds.length} modules completed`
-          );
+          
         } catch (partialError) {
-          console.error("Error updating partial progress:", partialError);
+          
         }
       }
 
@@ -447,7 +421,7 @@ const ModuleEvaluation = ({
         totalModules: moduleIds.length,
       };
     } catch (error) {
-      console.error("Error checking course completion:", error);
+      
       return null;
     }
   };

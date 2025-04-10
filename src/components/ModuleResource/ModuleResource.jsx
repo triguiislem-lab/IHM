@@ -59,7 +59,7 @@ const ModuleResource = ({ resource }) => {
   };
 
   const onDocumentLoadError = (error) => {
-    console.error("Error loading PDF:", error);
+    
     setPdfError(true);
   };
 
@@ -99,10 +99,7 @@ const ModuleResource = ({ resource }) => {
                   playerVars: { showinfo: 1 },
                 },
               }}
-              onError={(e) => console.error("Video error:", e)}
-            />
-          </div>
-        );
+              onError={(e) => 
 
       case "pdf":
         return (

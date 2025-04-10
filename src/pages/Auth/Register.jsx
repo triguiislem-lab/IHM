@@ -57,7 +57,7 @@ const Register = () => {
 
       navigate("/login");
     } catch (error) {
-      console.error("Registration error:", error);
+      
 
       // Handle specific errors
       if (error.code === "auth/email-already-in-use") {

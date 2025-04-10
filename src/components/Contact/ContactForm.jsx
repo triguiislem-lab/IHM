@@ -56,7 +56,7 @@ const ContactForm = ({ recipientId, recipientType, recipientName, courseId, cour
           }
         }
       } catch (error) {
-        console.error('Error fetching recipient info:', error);
+        
         setError('Erreur lors de la récupération des informations du destinataire');
       }
     };
@@ -113,7 +113,7 @@ const ContactForm = ({ recipientId, recipientType, recipientName, courseId, cour
         setSuccess(false);
       }, 5000);
     } catch (error) {
-      console.error('Error sending message:', error);
+      
       setError('Erreur lors de l\'envoi du message');
     } finally {
       setSubmitting(false);

@@ -53,7 +53,7 @@ const CourseFeedback = ({ courseId, courseName }) => {
           setAllFeedbacks(feedbacksList);
         }
       } catch (error) {
-        console.error('Error fetching feedbacks:', error);
+        
         setError('Erreur lors de la récupération des feedbacks');
       } finally {
         setLoading(false);
@@ -150,7 +150,7 @@ const CourseFeedback = ({ courseId, courseName }) => {
         setSuccess(false);
       }, 3000);
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      
       setError('Erreur lors de l\'envoi du feedback');
     } finally {
       setSubmitting(false);

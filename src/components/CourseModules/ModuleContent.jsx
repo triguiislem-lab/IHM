@@ -79,7 +79,7 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
 
         if (snapshot.exists()) {
           setModuleProgress(snapshot.val());
-          console.log(`Module progress loaded:`, snapshot.val());
+          
         } else {
           // Initialiser la progression si elle n'existe pas
           const initialProgress = {
@@ -94,10 +94,10 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
 
           await set(progressRef, initialProgress);
           setModuleProgress(initialProgress);
-          console.log(`Module progress initialized:`, initialProgress);
+          
         }
       } catch (error) {
-        console.error(`Error fetching module progress:`, error);
+        
       }
     };
 
@@ -124,7 +124,7 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
 
   // Fonction pour gérer la complétion d'une évaluation
   const handleEvaluationComplete = async (score) => {
-    console.log(`Evaluation completed with score: ${score}`);
+    
 
     // Mettre à jour la progression du module
     await updateModuleProgress(score);
@@ -174,11 +174,11 @@ const ModuleContent = ({ module, onComplete, isEnrolled = true }) => {
 
       // Mettre à jour l'état local
       setModuleProgress(newProgress);
-      console.log(`Module progress updated:`, newProgress);
+      
 
       return newProgress;
     } catch (error) {
-      console.error(`Error updating module progress:`, error);
+      
       return null;
     } finally {
       setProgressUpdating(false);

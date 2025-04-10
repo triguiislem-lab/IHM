@@ -6,7 +6,7 @@ import { ref, get, set, remove } from 'firebase/database';
  */
 export const cleanupDatabase = async () => {
   try {
-    console.log("Début du nettoyage de la base de données...");
+    
     
     // 1. Centraliser les inscriptions
     await centralizeEnrollments();
@@ -23,10 +23,10 @@ export const cleanupDatabase = async () => {
     // 5. Nettoyer les collections obsolètes
     await removeObsoletePaths();
     
-    console.log("Nettoyage de la base de données terminé avec succès!");
+    
     return true;
   } catch (error) {
-    console.error("Erreur lors du nettoyage de la base de données:", error);
+    
     return false;
   }
 };
@@ -35,7 +35,7 @@ export const cleanupDatabase = async () => {
  * Centraliser toutes les inscriptions dans Elearning/Enrollments
  */
 const centralizeEnrollments = async () => {
-  console.log("Centralisation des inscriptions...");
+  
   
   try {
     // Récupérer toutes les inscriptions existantes
@@ -83,7 +83,7 @@ const centralizeEnrollments = async () => {
               enrolledAt: enrollmentInfo.enrolledAt
             });
             
-            console.log(`Inscription migrée pour l'utilisateur ${userId} au cours ${courseId}`);
+            
           }
         }
       }
@@ -131,15 +131,15 @@ const centralizeEnrollments = async () => {
               enrolledAt: enrollmentInfo.enrolledAt
             });
             
-            console.log(`Inscription migrée depuis ${path} pour l'utilisateur ${userId} au cours ${courseId}`);
+            
           }
         }
       }
     }
     
-    console.log("Centralisation des inscriptions terminée");
+    
   } catch (error) {
-    console.error("Erreur lors de la centralisation des inscriptions:", error);
+    
     throw error;
   }
 };
@@ -148,7 +148,7 @@ const centralizeEnrollments = async () => {
  * Standardiser la structure des modules
  */
 const standardizeModules = async () => {
-  console.log("Standardisation des modules...");
+  
   
   try {
     // Récupérer tous les cours
@@ -220,15 +220,15 @@ const standardizeModules = async () => {
             const courseModulesRef = ref(database, `Elearning/Cours/${courseId}/modules`);
             await set(courseModulesRef, modulesObject);
             
-            console.log(`Modules standardisés pour le cours ${courseId}`);
+            
           }
         }
       }
     }
     
-    console.log("Standardisation des modules terminée");
+    
   } catch (error) {
-    console.error("Erreur lors de la standardisation des modules:", error);
+    
     throw error;
   }
 };
@@ -237,7 +237,7 @@ const standardizeModules = async () => {
  * Centraliser toutes les évaluations
  */
 const centralizeEvaluations = async () => {
-  console.log("Centralisation des évaluations...");
+  
   
   try {
     // Récupérer tous les cours
@@ -268,7 +268,7 @@ const centralizeEvaluations = async () => {
                 // Enregistrer l'évaluation
                 await set(evaluationRef, evaluationInfo);
                 
-                console.log(`Évaluation migrée pour le module ${moduleId}, évaluation ${evalId}`);
+                
               }
             }
           }
@@ -301,16 +301,16 @@ const centralizeEvaluations = async () => {
               // Enregistrer l'évaluation
               await set(evaluationRef, evaluationInfo);
               
-              console.log(`Évaluation migrée pour le module ${userEvalData.moduleId}, utilisateur ${userId}`);
+              
             }
           }
         }
       }
     }
     
-    console.log("Centralisation des évaluations terminée");
+    
   } catch (error) {
-    console.error("Erreur lors de la centralisation des évaluations:", error);
+    
     throw error;
   }
 };
@@ -319,7 +319,7 @@ const centralizeEvaluations = async () => {
  * Standardiser la progression des utilisateurs
  */
 const standardizeProgression = async () => {
-  console.log("Standardisation de la progression...");
+  
   
   try {
     // Récupérer la progression existante
@@ -397,16 +397,16 @@ const standardizeProgression = async () => {
               // Enregistrer la progression
               await set(courseProgressRef, progressInfo);
               
-              console.log(`Progression standardisée pour l'utilisateur ${userId}, cours ${courseId}`);
+              
             }
           }
         }
       }
     }
     
-    console.log("Standardisation de la progression terminée");
+    
   } catch (error) {
-    console.error("Erreur lors de la standardisation de la progression:", error);
+    
     throw error;
   }
 };
@@ -415,7 +415,7 @@ const standardizeProgression = async () => {
  * Supprimer les chemins obsolètes
  */
 const removeObsoletePaths = async () => {
-  console.log("Suppression des chemins obsolètes...");
+  
   
   try {
     // Liste des chemins à supprimer
@@ -429,12 +429,12 @@ const removeObsoletePaths = async () => {
     for (const path of obsoletePaths) {
       const pathRef = ref(database, path);
       await remove(pathRef);
-      console.log(`Chemin supprimé: ${path}`);
+      
     }
     
-    console.log("Suppression des chemins obsolètes terminée");
+    
   } catch (error) {
-    console.error("Erreur lors de la suppression des chemins obsolètes:", error);
+    
     throw error;
   }
 };

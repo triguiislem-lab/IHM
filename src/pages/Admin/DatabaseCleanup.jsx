@@ -38,7 +38,7 @@ const DatabaseCleanup = () => {
           }
         }
       } catch (error) {
-        console.error("Erreur lors de la vérification du statut d'administrateur:", error);
+        
         navigate('/');
       }
     };

@@ -27,7 +27,7 @@ const InstructorDashboard = () => {
 
           setCourses(instructorCourses);
         } catch (error) {
-          console.error("Error loading instructor courses:", error);
+          
           setCoursesError(
             "Une erreur s'est produite lors du chargement des cours."
           );
@@ -125,18 +125,18 @@ const InstructorDashboard = () => {
           <h2 className="text-xl font-semibold mb-4">Actions rapides</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link
-              to="/courses"
+              to="/instructor/course-form"
+              className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
+            >
+              <MdAdd />
+              Créer un cours
+            </Link>
+            <Link
+              to="/instructor/courses"
               className="bg-secondary text-white p-4 rounded-lg text-center hover:bg-secondary/90 transition-colors duration-300 flex items-center justify-center gap-2"
             >
               <MdSchool />
-              Explorer les cours
-            </Link>
-            <Link
-              to="/profile"
-              className="bg-blue-600 text-white p-4 rounded-lg text-center hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdPeople />
-              Mon profil
+              Gérer mes cours
             </Link>
             <Link
               to="/messages"
@@ -144,22 +144,6 @@ const InstructorDashboard = () => {
             >
               <MdMessage />
               Messages
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <Link
-              to="/admin/course/new"
-              className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdAdd />
-              Créer un nouveau cours
-            </Link>
-            <Link
-              to="/instructor/courses"
-              className="bg-purple-600 text-white p-4 rounded-lg text-center hover:bg-purple-700 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdSchool />
-              Gérer mes cours
             </Link>
           </div>
         </div>
@@ -210,16 +194,26 @@ const InstructorDashboard = () => {
                     <div className="flex space-x-2">
                       <Link
                         to={`/course/${course.id}`}
+                        className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm hover:bg-gray-300 transition-colors duration-300"
+                      >
+                        Aperçu
+                      </Link>
+                      <button
+                        onClick={() => {
+                          window.location.href = `/instructor/course-management/${course.id}`;
+                        }}
                         className="bg-secondary text-white px-3 py-1 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300"
                       >
-                        Voir
-                      </Link>
-                      <Link
-                        to={`/instructor/course/edit/${course.id}`}
-                        className="bg-orange-600 text-white px-3 py-1 rounded-md text-sm hover:bg-orange-700 transition-colors duration-300"
+                        Modules
+                      </button>
+                      <button
+                        onClick={() => {
+                          window.location.href = `/instructor/course-form/${course.id}`;
+                        }}
+                        className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition-colors duration-300"
                       >
                         Éditer
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -256,7 +250,7 @@ const InstructorDashboard = () => {
               </p>
               <div className="mt-4 flex justify-center space-x-4">
                 <Link
-                  to="/admin/course/new"
+                  to="/instructor/course-form"
                   className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center gap-2"
                 >
                   <MdAdd />

@@ -44,7 +44,7 @@ const Navbar = () => {
             const userData = snapshot.val();
             setUserType(userData.role || "student");
             setUserInfo(userData);
-            console.log("User info from elearning/users:", userData);
+            
           } else {
             // Try legacy path
             const legacyUserRef = ref(db, `users/${currentUser.uid}`);
@@ -65,7 +65,7 @@ const Navbar = () => {
               // Fetch complete user info as fallback
               const completeInfo = await fetchCompleteUserInfo(currentUser.uid);
               setUserInfo(completeInfo);
-              console.log("Complete user info (legacy):", completeInfo);
+              
             } else {
               // Default to student if no user data found
               setUserType("student");
@@ -78,7 +78,7 @@ const Navbar = () => {
             }
           }
         } catch (error) {
-          console.error("Error fetching user info:", error);
+          
           // Default values in case of error
           setUserType("student");
           setUserInfo({
@@ -107,7 +107,7 @@ const Navbar = () => {
       setUserMenuOpen(false);
       navigate("/");
     } catch (error) {
-      console.error("Error signing out:", error);
+      
     }
   };
 

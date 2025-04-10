@@ -71,7 +71,7 @@ const AdminDashboard = () => {
               disciplineName: discipline?.name || "",
             };
           } catch (error) {
-            console.error(`Error processing course ${course.id}:`, error);
+            
             return {
               ...course,
               students: 0,
@@ -99,7 +99,7 @@ const AdminDashboard = () => {
       const instructorsList = allUsers.filter((u) => u.role === "instructor");
       setInstructors(instructorsList);
     } catch (err) {
-      console.error("Error loading admin data:", err);
+      
       setError("Une erreur s'est produite lors du chargement des données.");
     } finally {
       setLoadingData(false);

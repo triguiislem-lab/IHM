@@ -27,7 +27,7 @@ const fetchInscriptionsByApprenant = async (apprenantId) => {
     }
     return [];
   } catch (error) {
-    console.error(`Error fetching inscriptions for apprenant ${apprenantId}:`, error);
+    
     return [];
   }
 };
@@ -54,7 +54,7 @@ const fetchEnrollmentsByUser = async (userId) => {
     
     return [];
   } catch (error) {
-    console.error(`Error fetching enrollments for user ${userId}:`, error);
+    
     return [];
   }
 };
@@ -79,7 +79,7 @@ const fetchFormationsByFormateur = async (formateurId) => {
     }
     return [];
   } catch (error) {
-    console.error(`Error fetching formations for formateur ${formateurId}:`, error);
+    
     return [];
   }
 };
@@ -91,11 +91,11 @@ const fetchFormationsByFormateur = async (formateurId) => {
  */
 export const fetchCompleteUserInfo = async (userId) => {
   try {
-    console.log(`Fetching complete user info for ${userId}`);
+    
 
     // Vérifier si userId est valide
     if (!userId) {
-      console.error("Invalid userId provided to fetchCompleteUserInfo");
+      
       return null;
     }
 
@@ -106,11 +106,11 @@ export const fetchCompleteUserInfo = async (userId) => {
 
     if (userSnapshot.exists()) {
       user = userSnapshot.val();
-      console.log("User found in elearning/users path:", user);
+      
     } else {
       // Si l'utilisateur n'est pas trouvé dans le chemin standardisé, créer un profil par défaut
-      console.log(`User ${userId} not found in elearning/users, creating default profile`);
-      console.error(`No user found with ID ${userId} in elearning/users`);
+      
+      
       
       // Créer un utilisateur par défaut basé sur l'authentification Firebase
       const auth = getAuth();
@@ -124,14 +124,14 @@ export const fetchCompleteUserInfo = async (userId) => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        console.log("Created default user from auth info:", user);
+        
         
         // Enregistrer l'utilisateur par défaut dans la base de données
         try {
           await set(userRef, user);
-          console.log(`Default user profile saved to elearning/users/${userId}`);
+          
         } catch (saveError) {
-          console.error(`Error saving default user profile:`, saveError);
+          
         }
       } else {
         return null;
@@ -145,7 +145,7 @@ export const fetchCompleteUserInfo = async (userId) => {
     // Déterminer le type d'utilisateur (avec valeur par défaut)
     // Dans la nouvelle structure, nous utilisons 'role' au lieu de 'userType'
     const userRole = user.role || user.userType || "student";
-    console.log(`User role: ${userRole}`);
+    
 
     // Récupérer les informations spécifiques au rôle
     try {
@@ -163,18 +163,18 @@ export const fetchCompleteUserInfo = async (userId) => {
         // Récupérer les inscriptions de l'apprenant
         try {
           inscriptions = await fetchInscriptionsByApprenant(userId);
-          console.log("Inscriptions:", inscriptions);
+          
         } catch (inscriptionsError) {
-          console.error("Error fetching inscriptions:", inscriptionsError);
+          
           inscriptions = [];
         }
 
         // Récupérer les enrollments de l'apprenant
         try {
           enrollments = await fetchEnrollmentsByUser(userId);
-          console.log("Enrollments:", enrollments);
+          
         } catch (enrollmentsError) {
-          console.error("Error fetching enrollments:", enrollmentsError);
+          
           enrollments = [];
         }
       } else if (userRole === "instructor" || userRole === "formateur") {
@@ -193,7 +193,7 @@ export const fetchCompleteUserInfo = async (userId) => {
           try {
             roleInfo.formations = await fetchFormationsByFormateur(userId);
           } catch (formationsError) {
-            console.error("Error fetching instructor's courses:", formationsError);
+            
             roleInfo.formations = [];
           }
         }
@@ -206,7 +206,7 @@ export const fetchCompleteUserInfo = async (userId) => {
           avatar: user.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
         };
       } else {
-        console.log(`Unknown user role: ${userRole}, creating default role info`);
+        
         roleInfo = {
           id: userId,
           utilisateurId: userId,
@@ -214,7 +214,7 @@ export const fetchCompleteUserInfo = async (userId) => {
         };
       }
     } catch (roleError) {
-      console.error("Error fetching role info:", roleError);
+      
       roleInfo = {
         id: userId,
         utilisateurId: userId,
@@ -234,10 +234,10 @@ export const fetchCompleteUserInfo = async (userId) => {
       enrollments: enrollments || []
     };
 
-    console.log("Complete user info:", completeUserInfo);
+    
     return completeUserInfo;
   } catch (error) {
-    console.error(`Error fetching complete user info for ${userId}:`, error);
+    
     // En cas d'erreur, retourner des données de test
     return {
       id: userId,

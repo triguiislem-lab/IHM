@@ -38,7 +38,7 @@ const ModuleProgressCard = ({ moduleId, courseId, moduleData, index }) => {
           setProgress(null);
         }
       } catch (error) {
-        console.error(`Error fetching module progress for ${moduleId}:`, error);
+        
         setError("Erreur lors de la récupération de la progression du module");
       } finally {
         setLoading(false);

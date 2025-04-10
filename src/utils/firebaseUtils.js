@@ -2,15 +2,16 @@ import { database } from '../../firebaseConfig';
 import { ref, get, set, update } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { fetchCompleteUserInfo } from './fetchCompleteUserInfo';
+import { getCachedData, setCachedData } from './cacheUtils';
 
 // Récupérer un formateur par ID
 export const fetchInstructorById = async (instructorId) => {
 	try {
-		console.log(`Fetching instructor with ID: ${instructorId}`);
+		
 
 		// Vérifier si l'ID est valide
 		if (!instructorId) {
-			console.log('No instructor ID provided');
+			
 			return null;
 		}
 
@@ -20,7 +21,7 @@ export const fetchInstructorById = async (instructorId) => {
 
 		if (snapshot.exists()) {
 			const instructorData = snapshot.val();
-			console.log(`Instructor found:`, instructorData);
+			
 
 			// Créer un objet formateur avec les informations nécessaires
 			return {
@@ -32,10 +33,10 @@ export const fetchInstructorById = async (instructorId) => {
 			};
 		}
 
-		console.log(`No instructor found with ID ${instructorId}`);
+		
 		return null;
 	} catch (error) {
-		console.error(`Error fetching instructor with ID ${instructorId}:`, error);
+		
 		return null;
 	}
 };
@@ -43,13 +44,13 @@ export const fetchInstructorById = async (instructorId) => {
 // Fonction générique pour récupérer des données de Firebase
 const fetchDataFromPath = async (path) => {
 	try {
-		console.log(`Fetching data from path: ${path}`);
+		
 		const dataRef = ref(database, path);
 		const snapshot = await get(dataRef);
 
 		if (snapshot.exists()) {
 			const data = snapshot.val();
-			console.log(`Data found at ${path}:`, data);
+			
 			// Convert object to array if necessary, preserving IDs
 			let result;
 			if (Array.isArray(data)) {
@@ -61,7 +62,7 @@ const fetchDataFromPath = async (path) => {
 					...value
 				}));
 			}
-			console.log(`Converted to array with IDs:`, result);
+			
 
 			// Ensure all items have required properties (image and instructor for courses)
 			result = await Promise.all(result.map(async (item) => {
@@ -69,25 +70,25 @@ const fetchDataFromPath = async (path) => {
 
 				// Add default image if missing
 				if (!updatedItem.image) {
-					console.log(`Adding default image to item ${updatedItem.id}`);
+					
 					updatedItem.image = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
 				}
 
 				// If this is a course, ensure it has instructor information
 				if (path.includes('courses') && (!updatedItem.instructor || Object.keys(updatedItem.instructor || {}).length === 0)) {
-					console.log(`Adding instructor information to course ${updatedItem.id}`);
+					
 
 					// Check if there's an instructorId but no instructor object
 					if (updatedItem.instructorId) {
 						// Try to fetch instructor data
-						console.log(`Course has instructorId ${updatedItem.instructorId}, fetching instructor data`);
+						
 						const instructorData = await fetchInstructorById(updatedItem.instructorId);
 
 						if (instructorData) {
-							console.log(`Found instructor data for ${updatedItem.instructorId}:`, instructorData);
+							
 							updatedItem.instructor = instructorData;
 						} else {
-							console.log(`No instructor data found for ${updatedItem.instructorId}, using default`);
+							
 							updatedItem.instructor = {
 								id: updatedItem.instructorId,
 								name: "Formateur",
@@ -97,7 +98,7 @@ const fetchDataFromPath = async (path) => {
 						}
 					} else {
 						// No instructorId, add default instructor
-						console.log(`No instructorId for course ${updatedItem.id}, using default`);
+						
 						updatedItem.instructor = {
 							name: "Formateur",
 							bio: "Informations du formateur non disponibles",
@@ -111,10 +112,10 @@ const fetchDataFromPath = async (path) => {
 
 			return result;
 		}
-		console.log(`No data found at ${path}`);
+		
 		return [];
 	} catch (error) {
-		console.error(`Error fetching data from ${path}:`, error);
+		
 		throw error;
 	}
 };
@@ -148,14 +149,14 @@ export const fetchFormateursFromDatabase = async () => {
 // Fonction pour tester les chemins disponibles dans Firebase
 export const testFirebasePaths = async () => {
 	try {
-		console.log("Testing Firebase paths...");
+		
 
 		// Tester le chemin racine
 		const rootRef = ref(database, '/');
 		const rootSnapshot = await get(rootRef);
 		if (rootSnapshot.exists()) {
 			const rootData = rootSnapshot.val();
-			console.log("Root data keys:", Object.keys(rootData));
+			
 		}
 
 		// Tester le chemin elearning
@@ -163,9 +164,9 @@ export const testFirebasePaths = async () => {
 		const elearningSnapshot = await get(elearningRef);
 		if (elearningSnapshot.exists()) {
 			const elearningData = elearningSnapshot.val();
-			console.log("elearning data keys:", Object.keys(elearningData));
+			
 		} else {
-			console.log("elearning path does not exist");
+			
 		}
 
 		// Examiner en détail la structure des cours
@@ -173,28 +174,28 @@ export const testFirebasePaths = async () => {
 		const coursSnapshot = await get(coursRef);
 		if (coursSnapshot.exists()) {
 			const coursData = coursSnapshot.val();
-			console.log("Cours data keys:", Object.keys(coursData));
+			
 
 			// Examiner le premier cours pour comprendre la structure
 			const firstCourseId = Object.keys(coursData)[0];
 			if (firstCourseId) {
-				console.log(`First course (${firstCourseId}) structure:`, coursData[firstCourseId]);
+				
 
 				// Vérifier si le cours a des modules
 				if (coursData[firstCourseId].modules) {
-					console.log(`Modules for course ${firstCourseId}:`, Object.keys(coursData[firstCourseId].modules));
+					
 
 					// Examiner le premier module
 					const firstModuleId = Object.keys(coursData[firstCourseId].modules)[0];
 					if (firstModuleId) {
-						console.log(`First module (${firstModuleId}) structure:`, coursData[firstCourseId].modules[firstModuleId]);
+						
 					}
 				} else {
-					console.log(`No modules found for course ${firstCourseId}`);
+					
 				}
 			}
 		} else {
-			console.log("No courses found in /Elearning/Cours path");
+			
 		}
 
 		// Examiner les formations
@@ -202,15 +203,15 @@ export const testFirebasePaths = async () => {
 		const formationsSnapshot = await get(formationsRef);
 		if (formationsSnapshot.exists()) {
 			const formationsData = formationsSnapshot.val();
-			console.log("Formations data keys:", Object.keys(formationsData));
+			
 
 			// Examiner la première formation
 			const firstFormationId = Object.keys(formationsData)[0];
 			if (firstFormationId) {
-				console.log(`First formation (${firstFormationId}) structure:`, formationsData[firstFormationId]);
+				
 			}
 		} else {
-			console.log("No formations found in /Elearning/Formations path");
+			
 		}
 
 		// Examiner les inscriptions
@@ -218,15 +219,15 @@ export const testFirebasePaths = async () => {
 		const inscriptionsSnapshot = await get(inscriptionsRef);
 		if (inscriptionsSnapshot.exists()) {
 			const inscriptionsData = inscriptionsSnapshot.val();
-			console.log("Inscriptions data keys:", Object.keys(inscriptionsData));
+			
 
 			// Examiner la première inscription
 			const firstInscriptionId = Object.keys(inscriptionsData)[0];
 			if (firstInscriptionId) {
-				console.log(`First inscription (${firstInscriptionId}) structure:`, inscriptionsData[firstInscriptionId]);
+				
 			}
 		} else {
-			console.log("No inscriptions found in /Elearning/Inscriptions path");
+			
 		}
 
 		// Examiner les évaluations
@@ -234,15 +235,15 @@ export const testFirebasePaths = async () => {
 		const evaluationsSnapshot = await get(evaluationsRef);
 		if (evaluationsSnapshot.exists()) {
 			const evaluationsData = evaluationsSnapshot.val();
-			console.log("Evaluations data keys:", Object.keys(evaluationsData));
+			
 
 			// Examiner la première évaluation
 			const firstEvaluationId = Object.keys(evaluationsData)[0];
 			if (firstEvaluationId) {
-				console.log(`First evaluation (${firstEvaluationId}) structure:`, evaluationsData[firstEvaluationId]);
+				
 			}
 		} else {
-			console.log("No evaluations found in /elearning/evaluations path");
+			
 		}
 
 		// Tester d'autres chemins possibles
@@ -262,20 +263,20 @@ export const testFirebasePaths = async () => {
 		for (const path of paths) {
 			const testRef = ref(database, path);
 			const testSnapshot = await get(testRef);
-			console.log(`Path ${path} exists:`, testSnapshot.exists());
+			
 			if (testSnapshot.exists()) {
 				const testData = testSnapshot.val();
 				if (typeof testData === 'object') {
-					console.log(`Data at ${path}:`, Array.isArray(testData) ? testData : Object.keys(testData));
+					
 				} else {
-					console.log(`Data at ${path}:`, testData);
+					
 				}
 			}
 		}
 
 		return "Test completed";
 	} catch (error) {
-		console.error("Error testing Firebase paths:", error);
+		
 		throw error;
 	}
 };
@@ -288,13 +289,13 @@ export const fetchFormationsFromDatabase = async () => {
 
 		// Si aucun résultat, essayer le chemin des courses comme fallback
 		if (!result || result.length === 0) {
-			console.log("No specialites found at elearning/specialites, trying courses as fallback");
+			
 			result = await fetchDataFromPath('elearning/courses');
 		}
 
 		// Si toujours aucun résultat, utiliser des données de test
 		if (!result || result.length === 0) {
-			console.log("No formations found in any path, using test data");
+			
 			result = [
 				{
 					id: "f1",
@@ -346,7 +347,7 @@ export const fetchFormationsFromDatabase = async () => {
 
 		return result;
 	} catch (error) {
-		console.error("Error in fetchFormationsFromDatabase:", error);
+		
 		// En cas d'erreur, retourner des données de test
 		return [
 			{
@@ -368,20 +369,29 @@ export const fetchFormationsFromDatabase = async () => {
 	}
 };
 
-// Récupérer les cours
+// Récupérer les cours avec mise en cache
 export const fetchCoursesFromDatabase = async () => {
 	try {
+		// Vérifier si les données sont en cache
+		const cacheKey = 'all_courses';
+		const cachedData = getCachedData(cacheKey);
+
+		if (cachedData) {
+			
+			return cachedData;
+		}
+
 		// Utiliser le nouveau chemin standardisé
 		let result = await fetchDataFromPath('elearning/courses');
 
 		// Si aucun résultat, utiliser des données de test
 		if (!result || result.length === 0) {
-			console.log("No courses found at elearning/courses, using test data");
+			
 		}
 
 		// Si toujours aucun résultat, utiliser des données de test
 		if (!result || result.length === 0) {
-			console.log("No courses found in any path, using test data");
+			
 			result = [
 				{
 					id: "c1",
@@ -444,9 +454,14 @@ export const fetchCoursesFromDatabase = async () => {
 			];
 		}
 
-		return result;
+	// Mettre en cache les résultats
+	if (result && result.length > 0) {
+		setCachedData(cacheKey, result);
+	}
+
+	return result;
 	} catch (error) {
-		console.error("Error in fetchCoursesFromDatabase:", error);
+		
 		// En cas d'erreur, retourner des données de test
 		return [
 			{
@@ -490,7 +505,7 @@ export const fetchModulesFromDatabase = async () => {
 // Récupérer les spécialités
 export const fetchSpecialitesFromDatabase = async () => {
 	try {
-		console.log('Fetching specialites from database');
+		
 
 		// Utiliser le nouveau chemin standardisé
 		const specialitesRef = ref(database, 'elearning/specialites');
@@ -498,7 +513,7 @@ export const fetchSpecialitesFromDatabase = async () => {
 
 		if (snapshot.exists()) {
 			const specialitesData = snapshot.val();
-			console.log('Specialites data:', specialitesData);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const specialitesArray = Object.entries(specialitesData).map(([id, data]) => ({
@@ -515,7 +530,7 @@ export const fetchSpecialitesFromDatabase = async () => {
 
 		if (oldPathSnapshot.exists()) {
 			const oldSpecialitesData = oldPathSnapshot.val();
-			console.log('Found specialites in old path:', oldSpecialitesData);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const specialitesArray = Object.entries(oldSpecialitesData).map(([id, data]) => ({
@@ -527,18 +542,18 @@ export const fetchSpecialitesFromDatabase = async () => {
 			try {
 				const newSpecialitesRef = ref(database, 'elearning/specialites');
 				await set(newSpecialitesRef, oldSpecialitesData);
-				console.log('Migrated specialites to new path');
+				
 			} catch (migrationError) {
-				console.error('Error migrating specialites:', migrationError);
+				
 			}
 
 			return specialitesArray;
 		}
 
-		console.log('No specialites found');
+		
 		return [];
 	} catch (error) {
-		console.error('Error fetching specialites:', error);
+		
 		return [];
 	}
 };
@@ -546,7 +561,7 @@ export const fetchSpecialitesFromDatabase = async () => {
 // Récupérer les disciplines
 export const fetchDisciplinesFromDatabase = async () => {
 	try {
-		console.log('Fetching disciplines from database');
+		
 
 		// Utiliser le nouveau chemin standardisé
 		const disciplinesRef = ref(database, 'elearning/disciplines');
@@ -554,7 +569,7 @@ export const fetchDisciplinesFromDatabase = async () => {
 
 		if (snapshot.exists()) {
 			const disciplinesData = snapshot.val();
-			console.log('Disciplines data:', disciplinesData);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const disciplinesArray = Object.entries(disciplinesData).map(([id, data]) => ({
@@ -571,7 +586,7 @@ export const fetchDisciplinesFromDatabase = async () => {
 
 		if (oldPathSnapshot.exists()) {
 			const oldDisciplinesData = oldPathSnapshot.val();
-			console.log('Found disciplines in old path:', oldDisciplinesData);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const disciplinesArray = Object.entries(oldDisciplinesData).map(([id, data]) => ({
@@ -583,18 +598,18 @@ export const fetchDisciplinesFromDatabase = async () => {
 			try {
 				const newDisciplinesRef = ref(database, 'elearning/disciplines');
 				await set(newDisciplinesRef, oldDisciplinesData);
-				console.log('Migrated disciplines to new path');
+				
 			} catch (migrationError) {
-				console.error('Error migrating disciplines:', migrationError);
+				
 			}
 
 			return disciplinesArray;
 		}
 
-		console.log('No disciplines found');
+		
 		return [];
 	} catch (error) {
-		console.error('Error fetching disciplines:', error);
+		
 		return [];
 	}
 };
@@ -612,7 +627,7 @@ export const fetchEnrollmentsFromDatabase = async () => {
 // Récupérer les enrollments d'un utilisateur spécifique
 export const fetchEnrollmentsByUser = async (userId) => {
 	try {
-		console.log(`Fetching enrollments for user ${userId}`);
+		
 
 		// Utiliser le chemin standardisé
 		const enrollmentsRef = ref(database, `elearning/enrollments/${userId}`);
@@ -621,7 +636,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 
 		if (snapshot.exists()) {
 			const enrollmentsData = snapshot.val();
-			console.log(`Found enrollments for user ${userId}:`, Object.keys(enrollmentsData));
+			
 
 			// Convertir les données en tableau d'inscriptions
 			enrollments = Object.entries(enrollmentsData).map(([courseId, data]) => ({
@@ -631,9 +646,9 @@ export const fetchEnrollmentsByUser = async (userId) => {
 				...data
 			}));
 
-			console.log(`Found ${enrollments.length} enrollments for user ${userId}`);
+			
 		} else {
-			console.log(`No enrollments found for user ${userId} in elearning/enrollments`);
+			
 
 			// Essayer d'autres chemins possibles comme fallback
 			const fallbackPaths = [
@@ -655,7 +670,7 @@ export const fetchEnrollmentsByUser = async (userId) => {
 						);
 
 						if (userEnrollments.length > 0) {
-							console.log(`Found ${userEnrollments.length} fallback enrollments in ${path}`);
+							
 							fallbackEnrollments = [...fallbackEnrollments, ...userEnrollments];
 
 							// Migrer les données vers le nouveau format
@@ -678,16 +693,16 @@ export const fetchEnrollmentsByUser = async (userId) => {
 											courseId,
 											enrolledAt: enrollment.enrolledAt || enrollment.date || new Date().toISOString()
 										});
-										console.log(`Migrated enrollment for course ${courseId} to new format`);
+										
 									} catch (migrationError) {
-										console.error(`Error migrating enrollment for course ${courseId}:`, migrationError);
+										
 									}
 								}
 							}
 						}
 					}
 				} catch (error) {
-					console.error(`Error checking legacy enrollments in ${path}:`, error);
+					
 				}
 			}
 
@@ -710,14 +725,14 @@ export const fetchEnrollmentsByUser = async (userId) => {
 					}
 				});
 
-				console.log(`Found ${uniqueEnrollments.length} unique fallback enrollments after deduplication`);
+				
 				enrollments = uniqueEnrollments;
 			}
 		}
 
 		return enrollments;
 	} catch (error) {
-		console.error(`Error fetching enrollments for user ${userId}:`, error);
+		
 		// En cas d'erreur, retourner des données de test
 		return [
 			{
@@ -766,7 +781,7 @@ export const fetchUserById = async (userId) => {
 		}
 		return null;
 	} catch (error) {
-		console.error(`Error fetching user with ID ${userId}:`, error);
+		
 		// En cas d'erreur, retourner des données de test
 		return {
 			id: userId,
@@ -796,7 +811,7 @@ export const fetchFormationById = async (formationId) => {
 		}
 		return null;
 	} catch (error) {
-		console.error(`Error fetching formation with ID ${formationId}:`, error);
+		
 		throw error;
 	}
 };
@@ -822,7 +837,7 @@ export const fetchInscriptionsByApprenant = async (apprenantId) => {
 		}
 		return [];
 	} catch (error) {
-		console.error(`Error fetching inscriptions for apprenant ${apprenantId}:`, error);
+		
 		// En cas d'erreur, retourner des données de test
 		return [
 			{
@@ -846,7 +861,7 @@ export const fetchInscriptionsByApprenant = async (apprenantId) => {
 // Récupérer les inscriptions pour un cours spécifique
 export const fetchCourseEnrollments = async (courseId) => {
 	try {
-		console.log(`Fetching enrollments for course ${courseId}`);
+		
 
 		// Vérifier d'abord dans le nouveau chemin standardisé
 		const enrollmentsRef = ref(database, `elearning/enrollments/byCourse/${courseId}`);
@@ -854,7 +869,7 @@ export const fetchCourseEnrollments = async (courseId) => {
 
 		if (snapshot.exists()) {
 			const enrollmentsData = snapshot.val();
-			console.log(`Found ${Object.keys(enrollmentsData).length} enrollments in new path`);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const enrollmentsArray = Object.entries(enrollmentsData).map(([userId, data]) => ({
@@ -872,7 +887,7 @@ export const fetchCourseEnrollments = async (courseId) => {
 
 		if (oldPathSnapshot.exists()) {
 			const oldEnrollmentsData = oldPathSnapshot.val();
-			console.log(`Found ${Object.keys(oldEnrollmentsData).length} enrollments in old path`);
+			
 
 			// Convertir l'objet en tableau avec les IDs
 			const enrollmentsArray = Object.entries(oldEnrollmentsData).map(([userId, data]) => ({
@@ -900,9 +915,9 @@ export const fetchCourseEnrollments = async (courseId) => {
 						status: 'active'
 					});
 				}
-				console.log(`Migrated ${enrollmentsArray.length} enrollments to new path`);
+				
 			} catch (migrationError) {
-				console.error('Error migrating enrollments:', migrationError);
+				
 			}
 
 			return enrollmentsArray;
@@ -929,16 +944,16 @@ export const fetchCourseEnrollments = async (courseId) => {
 			});
 
 			if (enrollmentsArray.length > 0) {
-				console.log(`Found ${enrollmentsArray.length} enrollments in progressions`);
+				
 				return enrollmentsArray;
 			}
 		}
 
 		// Aucune inscription trouvée
-		console.log(`No enrollments found for course ${courseId}`);
+		
 		return [];
 	} catch (error) {
-		console.error(`Error fetching enrollments for course ${courseId}:`, error);
+		
 		return [];
 	}
 };
@@ -959,7 +974,7 @@ export const fetchFormationsByFormateur = async (formateurId) => {
 		}
 		return [];
 	} catch (error) {
-		console.error(`Error fetching formations for formateur ${formateurId}:`, error);
+		
 		throw error;
 	}
 };
@@ -967,14 +982,14 @@ export const fetchFormationsByFormateur = async (formateurId) => {
 // Récupérer un cours spécifique par ID
 export const fetchCourseById = async (courseId) => {
 	try {
-		console.log(`Loading course with ID: ${courseId}`);
+		
 
 		// Utiliser le nouveau chemin standardisé
 		const directCourseRef = ref(database, `elearning/courses/${courseId}`);
 		const directCourseSnapshot = await get(directCourseRef);
 
 		if (directCourseSnapshot.exists()) {
-			console.log(`Course found directly at Elearning/Cours/${courseId}`);
+			
 			const courseData = directCourseSnapshot.val();
 
 			// Ajouter l'ID au cours
@@ -989,7 +1004,7 @@ export const fetchCourseById = async (courseId) => {
 			// Récupérer les informations du formateur si un instructorId est présent
 			let instructorData = null;
 			if (course.instructorId) {
-				console.log(`Course has instructorId ${course.instructorId}, fetching instructor data`);
+				
 				instructorData = await fetchInstructorById(course.instructorId);
 			}
 
@@ -1004,7 +1019,7 @@ export const fetchCourseById = async (courseId) => {
 					avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
 				}
 			};
-			console.log("Final course data with instructor:", courseWithModules);
+			
 			return courseWithModules;
 		}
 
@@ -1018,10 +1033,10 @@ export const fetchCourseById = async (courseId) => {
 				id,
 				...data
 			}));
-			console.log("Courses data:", courses);
+			
 
 			const course = courses.find(c => c.id === courseId);
-			console.log("Found in courses?", !!course);
+			
 
 			if (course) {
 				// Récupérer les modules du cours
@@ -1030,7 +1045,7 @@ export const fetchCourseById = async (courseId) => {
 				// Récupérer les informations du formateur si un instructorId est présent
 				let instructorData = null;
 				if (course.instructorId) {
-					console.log(`Course has instructorId ${course.instructorId}, fetching instructor data`);
+					
 					instructorData = await fetchInstructorById(course.instructorId);
 				}
 
@@ -1045,7 +1060,7 @@ export const fetchCourseById = async (courseId) => {
 						avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
 					}
 				};
-				console.log("Final course data with instructor:", courseWithModules);
+				
 				return courseWithModules;
 			}
 		}
@@ -1065,7 +1080,7 @@ export const fetchCourseById = async (courseId) => {
 		}
 
 		// Si toujours pas trouvé, créer un cours factice basé sur l'ID
-		console.log(`Course with ID ${courseId} not found, creating dummy course`);
+		
 		return {
 			id: courseId,
 			title: `Cours ${courseId}`,
@@ -1088,7 +1103,7 @@ export const fetchCourseById = async (courseId) => {
 			level: "Non spécifié"
 		};
 	} catch (error) {
-		console.error(`Error fetching course with ID ${courseId}:`, error);
+		
 		throw error;
 	}
 };
@@ -1096,7 +1111,7 @@ export const fetchCourseById = async (courseId) => {
 // Récupérer les modules d'un cours spécifique
 export const fetchModulesByCourse = async (courseId) => {
 	try {
-		console.log(`Fetching modules for course ${courseId}`);
+		
 		let modulesFound = false;
 		let modulesArray = [];
 
@@ -1111,13 +1126,13 @@ export const fetchModulesByCourse = async (courseId) => {
 		// Vérifier chaque chemin possible
 		for (const path of modulePaths) {
 			try {
-				console.log(`Checking for modules in ${path}`);
+				
 				const moduleRef = ref(database, path);
 				const moduleSnapshot = await get(moduleRef);
 
 				if (moduleSnapshot.exists()) {
 					const moduleData = moduleSnapshot.val();
-					console.log(`Found modules in ${path}:`, Object.keys(moduleData));
+					
 
 					// Convertir les modules en tableau avec leurs IDs
 					modulesArray = Object.entries(moduleData).map(([moduleId, moduleData]) => ({
@@ -1130,7 +1145,7 @@ export const fetchModulesByCourse = async (courseId) => {
 					break;
 				}
 			} catch (pathError) {
-				console.error(`Error checking modules in ${path}:`, pathError);
+				
 			}
 		}
 
@@ -1143,7 +1158,7 @@ export const fetchModulesByCourse = async (courseId) => {
 				const courseData = courseSnapshot.val();
 
 				if (courseData.modules) {
-					console.log(`Found modules directly in course ${courseId}`);
+					
 
 					// Convertir les modules en tableau avec leurs IDs
 					modulesArray = Object.entries(courseData.modules).map(([moduleId, moduleData]) => ({
@@ -1171,7 +1186,7 @@ export const fetchModulesByCourse = async (courseId) => {
 
 				// Filtrer les modules qui appartiennent au cours spécifié
 				modulesArray = allModules.filter(module => module.courseId === courseId);
-				console.log(`Found ${modulesArray.length} modules for course ${courseId} in elearning/modules`);
+				
 
 				if (modulesArray.length > 0) {
 					modulesFound = true;
@@ -1181,7 +1196,7 @@ export const fetchModulesByCourse = async (courseId) => {
 
 		// Si aucun module n'est trouvé, créer des modules par défaut
 		if (!modulesFound || modulesArray.length === 0) {
-			console.log(`No modules found for course ${courseId}, creating default modules`);
+			
 
 			// Récupérer les informations du cours pour le titre
 			let courseTitle = "Cours";
@@ -1193,7 +1208,7 @@ export const fetchModulesByCourse = async (courseId) => {
 					courseTitle = courseData.title || "Cours";
 				}
 			} catch (error) {
-				console.error("Error fetching course title:", error);
+				
 			}
 
 			// Créer des modules par défaut
@@ -1271,7 +1286,7 @@ export const fetchModulesByCourse = async (courseId) => {
 
 		return modulesArray;
 	} catch (error) {
-		console.error(`Error fetching modules for course ${courseId}:`, error);
+		
 		return [];
 	}
 };
@@ -1279,7 +1294,7 @@ export const fetchModulesByCourse = async (courseId) => {
 // Récupérer les évaluations d'un module spécifique
 export const fetchEvaluationsByModule = async (moduleId) => {
 	try {
-		console.log(`Fetching evaluations for module ${moduleId}`);
+		
 		let evaluationsFound = false;
 		let evaluationsArray = [];
 
@@ -1296,13 +1311,13 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 		// Vérifier chaque chemin possible
 		for (const path of evaluationPaths) {
 			try {
-				console.log(`Checking for evaluations in ${path}`);
+				
 				const evalRef = ref(database, path);
 				const evalSnapshot = await get(evalRef);
 
 				if (evalSnapshot.exists()) {
 					const evalData = evalSnapshot.val();
-					console.log(`Found evaluations in ${path}:`, Object.keys(evalData));
+					
 
 					// Convertir les évaluations en tableau avec leurs IDs
 					evaluationsArray = Object.entries(evalData).map(([evalId, evalData]) => ({
@@ -1315,7 +1330,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 					break;
 				}
 			} catch (pathError) {
-				console.error(`Error checking evaluations in ${path}:`, pathError);
+				
 			}
 		}
 
@@ -1328,7 +1343,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 				const moduleData = moduleSnapshot.val();
 
 				if (moduleData.evaluations) {
-					console.log(`Found evaluations directly in module ${moduleId}`);
+					
 
 					// Convertir les évaluations en tableau avec leurs IDs
 					evaluationsArray = Object.entries(moduleData.evaluations).map(([evalId, evalData]) => ({
@@ -1356,7 +1371,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 
 				// Filtrer les évaluations qui appartiennent au module spécifié
 				evaluationsArray = allEvaluations.filter(evaluation => evaluation.moduleId === moduleId);
-				console.log(`Found ${evaluationsArray.length} evaluations for module ${moduleId} in elearning/evaluations`);
+				
 
 				if (evaluationsArray.length > 0) {
 					evaluationsFound = true;
@@ -1366,7 +1381,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 
 		// Si aucune évaluation n'est trouvée, créer des évaluations par défaut
 		if (!evaluationsFound || evaluationsArray.length === 0) {
-			console.log(`No evaluations found for module ${moduleId}, creating default evaluations`);
+			
 
 			// Récupérer les informations du module pour le titre
 			let moduleTitle = "Module";
@@ -1378,7 +1393,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 					moduleTitle = moduleData.title || "Module";
 				}
 			} catch (error) {
-				console.error("Error fetching module title:", error);
+				
 			}
 
 			// Créer des évaluations par défaut
@@ -1432,7 +1447,7 @@ export const fetchEvaluationsByModule = async (moduleId) => {
 
 		return evaluationsArray;
 	} catch (error) {
-		console.error(`Error fetching evaluations for module ${moduleId}:`, error);
+		
 		return [];
 	}
 };
@@ -1498,14 +1513,14 @@ export const calculateCourseProgress = (modules) => {
 // Créer des modules et des évaluations de test pour un cours
 export const createTestModulesForCourse = async (courseId) => {
 	try {
-		console.log(`Creating test modules for course ${courseId}`);
+		
 
 		// Vérifier si le cours existe
 		const courseRef = ref(database, `elearning/courses/${courseId}`);
 		const courseSnapshot = await get(courseRef);
 
 		if (!courseSnapshot.exists()) {
-			console.error(`Course ${courseId} does not exist`);
+			
 			return false;
 		}
 
@@ -1545,10 +1560,10 @@ export const createTestModulesForCourse = async (courseId) => {
 		// Mettre à jour le cours avec les modules
 		await update(courseRef, { modules: modulesData });
 
-		console.log(`Successfully created test modules for course ${courseId}`);
+		
 		return true;
 	} catch (error) {
-		console.error(`Error creating test modules for course ${courseId}:`, error);
+		
 		return false;
 	}
 };
@@ -1556,14 +1571,14 @@ export const createTestModulesForCourse = async (courseId) => {
 // Ajouter un module à un cours
 export const addModuleToCourse = async (courseId, moduleData) => {
 	try {
-		console.log(`Adding module to course ${courseId}`);
+		
 
 		// Vérifier si le cours existe
 		const courseRef = ref(database, `elearning/courses/${courseId}`);
 		const courseSnapshot = await get(courseRef);
 
 		if (!courseSnapshot.exists()) {
-			console.error(`Course ${courseId} does not exist`);
+			
 			return false;
 		}
 
@@ -1581,10 +1596,10 @@ export const addModuleToCourse = async (courseId, moduleData) => {
 		const modulesRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}`);
 		await set(modulesRef, newModuleData);
 
-		console.log(`Successfully added module ${moduleId} to course ${courseId}`);
+		
 		return moduleId;
 	} catch (error) {
-		console.error(`Error adding module to course ${courseId}:`, error);
+		
 		return false;
 	}
 };
@@ -1592,14 +1607,14 @@ export const addModuleToCourse = async (courseId, moduleData) => {
 // Ajouter une évaluation à un module
 export const addEvaluationToModule = async (courseId, moduleId, evaluationData) => {
 	try {
-		console.log(`Adding evaluation to module ${moduleId}`);
+		
 
 		// Vérifier si le module existe
 		const moduleRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}`);
 		const moduleSnapshot = await get(moduleRef);
 
 		if (!moduleSnapshot.exists()) {
-			console.error(`Module ${moduleId} does not exist`);
+			
 			return false;
 		}
 
@@ -1617,10 +1632,10 @@ export const addEvaluationToModule = async (courseId, moduleId, evaluationData) 
 		const evalRef = ref(database, `elearning/courses/${courseId}/modules/${moduleId}/evaluations/${evalId}`);
 		await set(evalRef, newEvaluationData);
 
-		console.log(`Successfully added evaluation ${evalId} to module ${moduleId}`);
+		
 		return evalId;
 	} catch (error) {
-		console.error(`Error adding evaluation to module ${moduleId}:`, error);
+		
 		return false;
 	}
 };
@@ -1635,7 +1650,7 @@ export const fetchCoursesByFormation = async (formationId) => {
 		}
 		return [];
 	} catch (error) {
-		console.error(`Error fetching courses for formation ${formationId}:`, error);
+		
 		throw error;
 	}
 };

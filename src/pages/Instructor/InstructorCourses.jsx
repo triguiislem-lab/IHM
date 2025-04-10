@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import { motion } from "framer-motion";
@@ -13,43 +13,56 @@ import {
   MdArrowBack,
 } from "react-icons/md";
 import { fetchInstructorCourses } from "../../utils/moduleUtils";
+import OptimizedLoadingSpinner from "../../components/Common/OptimizedLoadingSpinner";
+import LazyImage from "../../components/Common/LazyImage";
+import { useAuth } from "../../hooks/useAuth";
 
 const InstructorCourses = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const auth = getAuth();
+  const { user, loading: authLoading } = useAuth();
+
+  // Fonction optimisée pour charger les cours
+  const loadCourses = useCallback(async () => {
+    if (authLoading) return;
+
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const instructorCourses = await fetchInstructorCourses(user.uid);
+      
+      setCourses(instructorCourses);
+    } catch (error) {
+      
+      setError("Erreur lors du chargement des cours. Veuillez réessayer.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    const loadCourses = async () => {
-      if (!auth.currentUser) {
-        navigate("/login");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const instructorCourses = await fetchInstructorCourses(
-          auth.currentUser.uid
-        );
-        setCourses(instructorCourses);
-      } catch (error) {
-        console.error("Error loading instructor courses:", error);
-        setError("Erreur lors du chargement des cours. Veuillez réessayer.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCourses();
-  }, [auth.currentUser, navigate]);
+  }, [loadCourses]);
 
+  // Afficher un état de chargement optimisé
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        <div className="flex flex-col justify-center items-center h-64">
+          <OptimizedLoadingSpinner
+            size="large"
+            text="Chargement de vos cours..."
+          />
+          <p className="text-gray-500 text-sm mt-4">
+            Chargement des données depuis Firebase...
+          </p>
         </div>
       </div>
     );
@@ -114,25 +127,13 @@ const InstructorCourses = () => {
               className="bg-white rounded-lg shadow-md overflow-hidden"
             >
               <div className="relative h-40 bg-gray-200">
-                {course.image ? (
-                  <img
-                    src={course.image}
-                    alt={course.title || course.titre}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                    <MdBook className="text-5xl text-gray-400" />
-                  </div>
-                )}
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <Link
-                    to={`/instructor/course-form/${course.id}`}
-                    className="p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors duration-300"
-                  >
-                    <MdEdit className="text-gray-700" />
-                  </Link>
-                </div>
+                <LazyImage
+                  src={course.image}
+                  alt={course.title || course.titre}
+                  className="w-full h-full object-cover"
+                  fallbackIcon={MdBook}
+                  fallbackClassName="w-full h-full"
+                />
               </div>
 
               <div className="p-4">
@@ -152,17 +153,32 @@ const InstructorCourses = () => {
                   {course.description || "Aucune description disponible."}
                 </p>
 
-                <div className="flex justify-between">
-                  <Link
-                    to={`/instructor/course/${course.id}`}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-secondary text-white rounded-md hover:bg-secondary/90 transition-colors duration-300"
+                <div className="flex justify-between gap-2">
+                  <button
+                    className="flex items-center gap-1 px-3 py-1.5 bg-secondary text-white rounded-md hover:bg-secondary/90 transition-colors duration-300 flex-1 justify-center"
+                    onClick={() => {
+                      
+                      window.location.href = `/instructor/course-management/${course.id}`;
+                    }}
                   >
-                    <span>Gérer</span>
-                  </Link>
+                    <MdBook />
+                    <span>Modules</span>
+                  </button>
+
+                  <button
+                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-300 flex-1 justify-center"
+                    onClick={() => {
+                      
+                      window.location.href = `/instructor/course-form/${course.id}`;
+                    }}
+                  >
+                    <MdEdit />
+                    <span>Modifier</span>
+                  </button>
 
                   <Link
                     to={`/course/${course.id}`}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors duration-300"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors duration-300 flex-1 justify-center"
                   >
                     <span>Aperçu</span>
                   </Link>

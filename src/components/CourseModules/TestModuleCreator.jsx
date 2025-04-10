@@ -12,12 +12,12 @@ const TestModuleCreator = ({ courseId, onModulesCreated }) => {
     setSuccess("");
 
     try {
-      console.log(`Creating test modules for course ${courseId}`);
+      
       const result = await createTestModulesForCourse(courseId);
       
       if (result) {
         setSuccess("Modules de test créés avec succès!");
-        console.log("Test modules created successfully");
+        
         
         // Récupérer le cours mis à jour
         const updatedCourse = await fetchCourseById(courseId);
@@ -29,7 +29,7 @@ const TestModuleCreator = ({ courseId, onModulesCreated }) => {
         setError("Erreur lors de la création des modules de test");
       }
     } catch (error) {
-      console.error("Error creating test modules:", error);
+      
       setError(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);

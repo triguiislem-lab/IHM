@@ -6,7 +6,7 @@ const SimpleModuleResource = ({ resource }) => {
   // Fonction pour déterminer le type de ressource
   const getResourceType = (url) => {
     if (!url) return "unknown";
-    
+
     if (
       url.includes("youtube.com") ||
       url.includes("youtu.be") ||
@@ -17,11 +17,11 @@ const SimpleModuleResource = ({ resource }) => {
     ) {
       return "video";
     }
-    
+
     if (url.endsWith(".pdf")) {
       return "pdf";
     }
-    
+
     if (
       url.endsWith(".jpg") ||
       url.endsWith(".jpeg") ||
@@ -31,7 +31,7 @@ const SimpleModuleResource = ({ resource }) => {
     ) {
       return "image";
     }
-    
+
     return "link";
   };
 
@@ -58,10 +58,12 @@ const SimpleModuleResource = ({ resource }) => {
               height="100%"
               config={{
                 youtube: {
-                  playerVars: { showinfo: 1 }
-                }
+                  playerVars: { showinfo: 1 },
+                },
               }}
-              onError={(e) => console.error("Video error:", e)}
+              onError={(e) => {
+                console.error("Video playback error:", e);
+              }}
             />
           </div>
         );
@@ -103,7 +105,8 @@ const SimpleModuleResource = ({ resource }) => {
               className="max-w-full h-auto rounded-lg mx-auto"
               onError={(e) => {
                 e.target.onerror = null;
-                e.target.src = "https://via.placeholder.com/800x600?text=Image+non+disponible";
+                e.target.src =
+                  "https://via.placeholder.com/800x600?text=Image+non+disponible";
               }}
             />
           </div>

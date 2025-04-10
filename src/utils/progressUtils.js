@@ -14,7 +14,7 @@ export const getUserCourseProgress = async (userId, courseId) => {
     
     return null;
   } catch (error) {
-    console.error(`Error fetching progress for user ${userId} and course ${courseId}:`, error);
+    
     return null;
   }
 };
@@ -32,7 +32,7 @@ export const getUserAllCoursesProgress = async (userId) => {
     
     return {};
   } catch (error) {
-    console.error(`Error fetching all progress for user ${userId}:`, error);
+    
     return {};
   }
 };
@@ -54,7 +54,7 @@ export const updateModuleProgress = async (userId, courseId, moduleId, data) => 
     
     return true;
   } catch (error) {
-    console.error(`Error updating module progress:`, error);
+    
     return false;
   }
 };
@@ -107,7 +107,7 @@ export const recalculateCourseProgress = async (userId, courseId) => {
     
     return null;
   } catch (error) {
-    console.error(`Error recalculating course progress:`, error);
+    
     return null;
   }
 };
@@ -145,7 +145,7 @@ export const initializeCourseProgress = async (userId, courseId, modules = []) =
     
     return true;
   } catch (error) {
-    console.error(`Error initializing course progress:`, error);
+    
     return false;
   }
 };
@@ -189,7 +189,7 @@ export const getUserOverallProgress = async (userId) => {
       overallProgress
     };
   } catch (error) {
-    console.error(`Error calculating overall progress:`, error);
+    
     return {
       enrolledCourses: 0,
       completedCourses: 0,

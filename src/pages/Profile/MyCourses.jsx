@@ -28,12 +28,12 @@ const MyCourses = () => {
     const loadUserInfo = async () => {
       try {
         const user = auth.currentUser;
-        console.log("Current user:", user);
+        
 
         if (user) {
           // Récupérer les informations utilisateur depuis Firebase
           const info = await fetchCompleteUserInfo(user.uid);
-          console.log("User info loaded:", info);
+          
 
           // S'assurer que info n'est pas null avant de continuer
           if (info) {
@@ -41,42 +41,31 @@ const MyCourses = () => {
 
             // Récupérer les inscriptions de l'utilisateur directement
             const directEnrollments = await fetchEnrollmentsByUser(user.uid);
-            console.log(
-              "User enrollments fetched directly:",
-              directEnrollments
-            );
+            
 
             // Utiliser les inscriptions récupérées directement ou celles de l'utilisateur
             const enrollments =
               directEnrollments.length > 0
                 ? directEnrollments
                 : info.enrollments || [];
-            console.log("Final user enrollments:", enrollments);
+            
 
             if (enrollments.length > 0) {
               try {
                 // Récupérer les détails des cours
                 const coursePromises = enrollments.map(async (enrollment) => {
                   try {
-                    console.log(
-                      `Fetching course with ID: ${enrollment.courseId}`
-                    );
+                    
                     const courseData = await fetchCourseById(
                       enrollment.courseId
                     );
-                    console.log(
-                      `Course data for ${enrollment.courseId}:`,
-                      courseData
-                    );
+                    
                     return {
                       ...courseData,
                       enrolledAt: enrollment.enrolledAt,
                     };
                   } catch (courseError) {
-                    console.error(
-                      `Error fetching course ${enrollment.courseId}:`,
-                      courseError
-                    );
+                    
                     // Retourner un objet de cours par défaut en cas d'erreur
                     return {
                       id: enrollment.courseId,
@@ -90,7 +79,7 @@ const MyCourses = () => {
                 });
 
                 const coursesData = await Promise.all(coursePromises);
-                console.log("Courses data:", coursesData);
+                
 
                 // Filtrer les cours null ou undefined et éliminer les doublons
                 const validCoursesData = coursesData.filter((course) => course);
@@ -105,21 +94,19 @@ const MyCourses = () => {
 
                 // Convertir la Map en tableau
                 const uniqueCoursesData = Array.from(uniqueCoursesMap.values());
-                console.log(
-                  `Found ${validCoursesData.length} courses, ${uniqueCoursesData.length} unique courses after filtering`
-                );
+                
 
                 setCourses(uniqueCoursesData);
               } catch (coursesError) {
-                console.error("Error processing courses:", coursesError);
+                
                 setCourses([]);
               }
             } else {
-              console.log("User has no enrollments");
+              
               setCourses([]);
             }
           } else {
-            console.error("User info is null");
+            
             setUserInfo({
               prenom: "Utilisateur",
               nom: "",
@@ -130,28 +117,24 @@ const MyCourses = () => {
             setCourses([]);
           }
         } else {
-          console.error("No current user found");
+          
           setUserInfo(null);
           setCourses([]);
         }
       } catch (error) {
-        console.error("Error loading user info:", error);
+        
 
         // Afficher l'erreur complète pour le débogage
-        console.error("Error details:", {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-        });
+        
 
         // Essayer de récupérer les inscriptions directement en cas d'erreur
         try {
           if (auth.currentUser) {
-            console.log("Trying to fetch enrollments directly as fallback...");
+            
             const directEnrollments = await fetchEnrollmentsByUser(
               auth.currentUser.uid
             );
-            console.log("Fallback enrollments:", directEnrollments);
+            
 
             if (directEnrollments && directEnrollments.length > 0) {
               // Récupérer les détails des cours
@@ -166,10 +149,7 @@ const MyCourses = () => {
                       enrolledAt: enrollment.enrolledAt,
                     };
                   } catch (courseError) {
-                    console.error(
-                      `Error fetching course ${enrollment.courseId}:`,
-                      courseError
-                    );
+                    
                     return {
                       id: enrollment.courseId,
                       title: enrollment.courseName || "Cours",
@@ -183,7 +163,7 @@ const MyCourses = () => {
               );
 
               const coursesData = await Promise.all(coursePromises);
-              console.log("Fallback courses data:", coursesData);
+              
 
               // Filtrer les cours null ou undefined
               const validCoursesData = coursesData.filter((course) => course);
@@ -205,7 +185,7 @@ const MyCourses = () => {
             setCourses([]);
           }
         } catch (fallbackError) {
-          console.error("Error in fallback method:", fallbackError);
+          
           // Créer un utilisateur par défaut en cas d'erreur
           if (auth.currentUser) {
             setUserInfo({
@@ -227,7 +207,7 @@ const MyCourses = () => {
 
     // Ajouter un écouteur d'événement pour les changements d'authentification
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      console.log("Auth state changed:", user);
+      
       if (user) {
         loadUserInfo();
       } else {
@@ -346,10 +326,7 @@ const MyCourses = () => {
                               alt={course.title || course.titre}
                               className="w-full h-48 object-cover"
                               onError={(e) => {
-                                console.log(
-                                  "MyCourses image failed to load:",
-                                  e.target.src
-                                );
+                                
                                 e.target.src =
                                   "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80";
                               }}
