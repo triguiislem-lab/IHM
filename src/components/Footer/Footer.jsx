@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { HiLocationMarker } from "react-icons/hi";
 import { MdComputer } from "react-icons/md";
@@ -51,24 +52,24 @@ const Footer = () => {
                 </h1>
                 <ul className="flex flex-col gap-3">
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/" className="hover:text-secondary duration-200">
                       Home
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/about" className="hover:text-secondary duration-200">
                       About
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/services" className="hover:text-secondary duration-200">
                       Services
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/login" className="hover:text-secondary duration-200">
                       Login
-                    </a>
+                    </Link>
                   </li>
                 </ul>
               </div>
@@ -78,24 +79,24 @@ const Footer = () => {
                 </h1>
                 <ul className="flex flex-col gap-3">
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/" className="hover:text-secondary duration-200">
                       Home
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/about" className="hover:text-secondary duration-200">
                       About
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/services" className="hover:text-secondary duration-200">
                       Services
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/login" className="hover:text-secondary duration-200">
                       Login
-                    </a>
+                    </Link>
                   </li>
                 </ul>
               </div>
@@ -105,24 +106,24 @@ const Footer = () => {
                 </h1>
                 <ul className="flex flex-col gap-3">
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/" className="hover:text-secondary duration-200">
                       Home
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/about" className="hover:text-secondary duration-200">
                       About
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/services" className="hover:text-secondary duration-200">
                       Services
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-secondary duration-200">
+                    <Link to="/login" className="hover:text-secondary duration-200">
                       Login
-                    </a>
+                    </Link>
                   </li>
                 </ul>
               </div>

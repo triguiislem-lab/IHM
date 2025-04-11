@@ -7,21 +7,21 @@ export const NavbarMenu = [
   {
     id: 2,
     title: "For Students",
-    link: "#",
+    link: "/for-students",
   },
   {
     id: 3,
     title: "Resources",
-    link: "#",
+    link: "/resources",
   },
   {
     id: 4,
     title: "About us",
-    link: "#",
+    link: "/about",
   },
   {
     id: 5,
     title: "Contact us",
-    link: "#",
+    link: "/contact",
   },
 ];

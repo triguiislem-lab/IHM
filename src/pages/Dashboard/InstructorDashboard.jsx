@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { fetchCoursesFromDatabase } from "../../utils/firebaseUtils";
 import { MdSchool, MdPeople, MdAdd, MdMessage } from "react-icons/md";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import LoadingSpinner from "../../components/Common/LoadingSpinner";
 
 const InstructorDashboard = () => {
@@ -11,6 +11,7 @@ const InstructorDashboard = () => {
   const { user, role, loading: authLoading, error: authError } = useAuth();
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadCourses = async () => {
@@ -72,7 +73,7 @@ const InstructorDashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.2 }}
       >
         <h1 className="text-3xl font-bold mb-8">Tableau de bord formateur</h1>
 
@@ -200,7 +201,7 @@ const InstructorDashboard = () => {
                       </Link>
                       <button
                         onClick={() => {
-                          window.location.href = `/instructor/course-management/${course.id}`;
+                          navigate(`/instructor/course-management/${course.id}`);
                         }}
                         className="bg-secondary text-white px-3 py-1 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300"
                       >
@@ -208,7 +209,7 @@ const InstructorDashboard = () => {
                       </button>
                       <button
                         onClick={() => {
-                          window.location.href = `/instructor/course-form/${course.id}`;
+                          navigate(`/instructor/course-form/${course.id}`);
                         }}
                         className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition-colors duration-300"
                       >

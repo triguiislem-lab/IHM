@@ -7,16 +7,17 @@ const MessagesRedirect = () => {
   const { userRole, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading) {
+    // Only navigate when loading is done AND userRole is determined (not null)
+    if (!loading && userRole) { 
       if (userRole === 'admin') {
-        navigate('/admin/messages');
+        navigate('/admin/messages', { replace: true });
       } else if (userRole === 'instructor') {
-        navigate('/instructor/messages');
+        navigate('/instructor/messages', { replace: true });
       } else if (userRole === 'student') {
-        navigate('/student/messages');
+        navigate('/student/messages', { replace: true });
       } else {
-        // Redirection par défaut si le rôle n'est pas reconnu
-        navigate('/');
+        // Role not recognized - Navigate to homepage
+        navigate('/', { replace: true });
       }
     }
   }, [userRole, loading, navigate]);

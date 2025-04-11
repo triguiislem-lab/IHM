@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { NavbarMenu } from "../../mockData/data.js";
 import {
   MdComputer,
   MdMenu,
@@ -20,6 +19,33 @@ import { Link, useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { fetchCompleteUserInfo } from "../../utils/firebaseUtils";
+
+// Define Navigation Menus based on role
+const loggedOutMenu = [
+  { id: 1, title: "Home", link: "/" },
+  { id: 2, title: "Courses", link: "/courses" },
+  { id: 3, title: "About", link: "/about" },
+  { id: 4, title: "Contact", link: "/contact" },
+];
+
+const studentMenu = [
+  { id: 1, title: "Home", link: "/" },
+  { id: 2, title: "My Courses", link: "/student/enrollments" }, // Link to student's enrolled courses
+  { id: 3, title: "Explore Courses", link: "/courses" },
+];
+
+const instructorMenu = [
+  { id: 1, title: "Dashboard", link: "/instructor/dashboard" },
+  { id: 2, title: "My Courses", link: "/instructor/courses" }, // Link to courses managed by instructor
+  { id: 3, title: "Create Course", link: "/instructor/course-form" },
+];
+
+const adminMenu = [
+  { id: 1, title: "Dashboard", link: "/admin/dashboard" },
+  { id: 2, title: "Courses", link: "/admin/courses" }, // Link to course management
+  { id: 3, title: "Users", link: "/admin/users" },     // Link to user management
+  { id: 4, title: "Settings", link: "/admin/settings" },
+];
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,9 +68,10 @@ const Navbar = () => {
 
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            setUserType(userData.role || "student");
+            const role = userData.role || "student"; // Default to student if role missing
+            setUserType(role); 
             setUserInfo(userData);
-            
+             
           } else {
             // Try legacy path
             const legacyUserRef = ref(db, `users/${currentUser.uid}`);
@@ -65,10 +92,11 @@ const Navbar = () => {
               // Fetch complete user info as fallback
               const completeInfo = await fetchCompleteUserInfo(currentUser.uid);
               setUserInfo(completeInfo);
-              
+               
             } else {
               // Default to student if no user data found
-              setUserType("student");
+               
+              setUserType("student"); 
               setUserInfo({
                 id: currentUser.uid,
                 email: currentUser.email,
@@ -78,9 +106,10 @@ const Navbar = () => {
             }
           }
         } catch (error) {
-          
+           
           // Default values in case of error
-          setUserType("student");
+           
+          setUserType("student"); 
           setUserInfo({
             id: currentUser.uid,
             email: currentUser.email,
@@ -95,28 +124,43 @@ const Navbar = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [auth]); // Added auth dependency
 
   const toggleUserMenu = () => {
     setUserMenuOpen(!userMenuOpen);
+  };
+  
+  const closeUserMenu = () => {
+      setUserMenuOpen(false);
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setUserMenuOpen(false);
+      closeUserMenu(); // Close user menu on logout
+      setIsOpen(false); // Close responsive menu if open
       navigate("/");
     } catch (error) {
-      
+       
     }
   };
+  
+  // Determine which menu to display
+  let currentMenu = loggedOutMenu; // Default to logged out
+  if (userType === 'student') {
+    currentMenu = studentMenu;
+  } else if (userType === 'instructor') {
+    currentMenu = instructorMenu;
+  } else if (userType === 'admin') {
+    currentMenu = adminMenu;
+  }
 
   return (
     <>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
+        transition={{ duration: 0.2, delay: 0.1 }}
       >
         <div className="container flex justify-between items-center py-6">
           {/* Logo section */}
@@ -125,10 +169,10 @@ const Navbar = () => {
             <Link to="/">E-Tutor</Link>
           </div>
 
-          {/* Menu section */}
+          {/* Menu section - Conditionally render links */}
           <div className="hidden lg:block">
             <ul className="flex items-center gap-6">
-              {NavbarMenu.map((item) => (
+              {currentMenu.map((item) => ( // Use the determined currentMenu
                 <li key={item.id}>
                   <Link
                     to={item.link}
@@ -144,15 +188,9 @@ const Navbar = () => {
           <div className="hidden lg:flex items-center space-x-6">
             {user ? (
               <div className="relative">
+                 {/* Removed the extra dashboard link here as it's now in the role-specific menus */}
                 <div className="flex items-center space-x-4">
-                  {userType && (
-                    <Link
-                      to={`/dashboard/${userType.toLowerCase()}`}
-                      className="font-semibold hover:text-secondary transition-colors duration-300"
-                    >
-                      Tableau de bord
-                    </Link>
-                  )}
+                  {/* User Avatar/Name Button */}
                   <button
                     onClick={toggleUserMenu}
                     className="flex items-center gap-2 hover:text-secondary transition-colors duration-300"
@@ -187,77 +225,38 @@ const Navbar = () => {
                 {/* User Menu Dropdown */}
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                    {/* Links common to logged-in users or specific roles */}
                     <Link
-                      to="/profile"
+                      to="/profile" // Redirects handled by ProfileRedirect
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserMenuOpen(false)}
+                      onClick={() => { console.log('[Navbar] Clicked Mon profil link'); closeUserMenu(); }}
                     >
                       <MdPerson className="mr-2 h-5 w-5" />
                       Mon profil
                     </Link>
-                    {/* Lien vers les cours selon le rôle */}
-                    {userType === "student" && (
-                      <Link
-                        to="/student/enrollments"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <MdBook className="mr-2 h-5 w-5" />
-                        Mes formations
-                      </Link>
-                    )}
-                    {userType === "instructor" && (
-                      <Link
-                        to="/instructor/courses"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <MdBook className="mr-2 h-5 w-5" />
-                        Mes cours
-                      </Link>
-                    )}
-                    {userType === "admin" && (
-                      <Link
-                        to="/admin/courses"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <MdBook className="mr-2 h-5 w-5" />
-                        Gestion des cours
-                      </Link>
-                    )}
-                    {/* Tableau de bord spécifique au rôle */}
-                    {userType && (
-                      <Link
-                        to={
-                          userType === "admin"
-                            ? "/admin/dashboard"
-                            : userType === "instructor"
-                            ? "/instructor/dashboard"
-                            : "/student/dashboard"
-                        }
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <MdDashboard className="mr-2 h-5 w-5" />
-                        Tableau de bord
-                      </Link>
-                    )}
-                    <Link
-                      to="/messages"
+                    {/* Add role specific links if needed, e.g., Edit Profile */}
+                     <Link
+                      to="/edit-profile" // Redirects handled by EditProfileRedirect
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setUserMenuOpen(false)}
+                      onClick={() => { console.log('[Navbar] Clicked Éditer Profil link'); closeUserMenu(); }}
+                    >
+                      <MdSettings className="mr-2 h-5 w-5" />
+                      Éditer Profil
+                    </Link>
+                     <Link
+                      to="/messages" // Redirects handled by MessagesRedirect
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => { console.log('[Navbar] Clicked Messages link'); closeUserMenu(); }}
                     >
                       <MdMessage className="mr-2 h-5 w-5" />
-                      {userType === "admin"
-                        ? "Messages"
-                        : userType === "instructor"
-                        ? "Messages des étudiants"
-                        : "Contacter les formateurs"}
+                      Messages
                     </Link>
+                    {/* Separator */}
+                     <hr className="my-1" /> 
+                    {/* Logout Button */}
                     <button
                       onClick={handleLogout}
-                      className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="w-full text-left flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                     >
                       <MdLogout className="mr-2 h-5 w-5" />
                       Déconnexion
@@ -266,6 +265,7 @@ const Navbar = () => {
                 )}
               </div>
             ) : (
+              // Login/Register Buttons for logged-out users
               <>
                 <Link
                   to="/login"
@@ -275,27 +275,32 @@ const Navbar = () => {
                 </Link>
                 <Link
                   to="/register"
-                  className="text-white bg-secondary font-semibold rounded-full px-6 py-2 hover:bg-secondary/90 transition-colors duration-300"
+                  className="bg-secondary text-white font-semibold px-6 py-2 rounded-lg hover:bg-secondary/90 transition-colors duration-300"
                 >
                   Inscription
                 </Link>
               </>
             )}
           </div>
-          {/* Mobile Hamburger Menu */}
-          <div className="lg:hidden" onClick={() => setIsOpen(!isOpen)}>
-            <MdMenu className="text-4xl" />
-          </div>
+          {/* Mobile menu Button */}
+           <div className="lg:hidden">
+             <button onClick={() => setIsOpen(!isOpen)}>
+               <MdMenu className="h-8 w-8 text-secondary" />
+             </button>
+           </div>
         </div>
       </motion.div>
 
-      {/* mobile Sidebar section */}
+      {/* Responsive Menu Component - Needs updates to reflect role-based menus */}
       <ResponsiveMenu
         isOpen={isOpen}
+        closeMenu={() => setIsOpen(false)}
         user={user}
         userType={userType}
         userInfo={userInfo}
         handleLogout={handleLogout}
+        // Pass the correct menu based on role
+        menuItems={currentMenu} 
       />
     </>
   );

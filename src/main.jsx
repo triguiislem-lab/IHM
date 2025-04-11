@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./OptimizedApp.jsx";
+import App from "./App.jsx";
 import "./optimized-styles.css";
 import "./index.css";
 import "slick-carousel/slick/slick.css";

@@ -7,17 +7,28 @@ const ProfileRedirect = () => {
   const { userRole, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading) {
+    // Only navigate when loading is done AND userRole is determined (not null)
+    if (!loading && userRole) { 
+        // *** ADDED LOG: Log the role value right before navigation decision ***
+        console.log(`[ProfileRedirect] Decision time! loading=${loading}, userRole='${userRole}'`); 
+
       if (userRole === 'admin') {
-        navigate('/admin/profile');
+        console.log(`[ProfileRedirect] Role matches 'admin', navigating to /admin/profile`);
+        navigate('/admin/profile', { replace: true }); 
       } else if (userRole === 'instructor') {
-        navigate('/instructor/profile');
+        console.log(`[ProfileRedirect] Role matches 'instructor', navigating to /instructor/profile`);
+        navigate('/instructor/profile', { replace: true }); 
       } else if (userRole === 'student') {
-        navigate('/student/profile');
+        console.log(`[ProfileRedirect] Role matches 'student', navigating to /student/profile`);
+        navigate('/student/profile', { replace: true }); 
       } else {
-        // Redirection par défaut si le rôle n'est pas reconnu
-        navigate('/');
+        // This case should ideally not be reached if userRole is checked for null
+        console.log(`[ProfileRedirect] Role ('${userRole}') NOT recognized, navigating to /`);
+        navigate('/', { replace: true }); 
       }
+    } else if (!loading && !userRole) {
+        // *** ADDED LOG: Log if loading is done but userRole is still null/falsy ***
+        console.log(`[ProfileRedirect] Loading done, but userRole is still falsy ('${userRole}'). Waiting.`);
     }
   }, [userRole, loading, navigate]);
 

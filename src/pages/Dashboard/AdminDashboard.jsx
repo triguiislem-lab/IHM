@@ -139,7 +139,7 @@ const AdminDashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.2 }}
       >
         <h1 className="text-3xl font-bold mb-8">
           Tableau de bord administrateur
@@ -259,14 +259,13 @@ const AdminDashboard = () => {
               <MdStorage />
               Migration BDD
             </Link>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
-              className="bg-gray-500 text-white p-4 rounded-lg text-center hover:bg-gray-600 transition-colors duration-300 flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
+            <Link
+              to="/admin/settings"
+              className="bg-gray-500 text-white p-4 rounded-lg text-center hover:bg-gray-600 transition-colors duration-300 flex items-center justify-center gap-2"
             >
               <MdSettings />
               Paramètres
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -298,9 +297,8 @@ const AdminDashboard = () => {
                       </td>
                       <td className="py-3 px-4">
                         <Link
-                          to={`#`}
-                          onClick={(e) => e.preventDefault()}
-                          className="text-indigo-600 hover:text-indigo-800 hover:underline text-sm cursor-not-allowed opacity-50"
+                          to={`/admin/user/${user.id || user.uid}`}
+                          className="text-indigo-600 hover:text-indigo-800 hover:underline text-sm"
                         >
                           Détails
                         </Link>
@@ -345,9 +343,8 @@ const AdminDashboard = () => {
                       </td>
                       <td className="py-3 px-4">
                         <Link
-                          to={`#`}
-                          onClick={(e) => e.preventDefault()}
-                          className="text-indigo-600 hover:text-indigo-800 hover:underline text-sm cursor-not-allowed opacity-50"
+                          to={`/admin/user/${user.id || user.uid}`}
+                          className="text-indigo-600 hover:text-indigo-800 hover:underline text-sm"
                         >
                           Détails
                         </Link>
@@ -402,9 +399,8 @@ const AdminDashboard = () => {
                         </span>
                         {course.students > 0 && (
                           <Link
-                            to={`#`}
-                            onClick={(e) => e.preventDefault()}
-                            className="ml-2 text-xs text-blue-600 hover:underline cursor-not-allowed opacity-50"
+                            to={`/admin/course-enrollments/${course.id}`}
+                            className="ml-2 text-xs text-blue-600 hover:underline"
                           >
                             (Voir liste)
                           </Link>
