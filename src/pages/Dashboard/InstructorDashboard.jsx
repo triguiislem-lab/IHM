@@ -1,274 +1,174 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { fetchCoursesFromDatabase } from "../../utils/firebaseUtils";
-import { MdSchool, MdPeople, MdAdd, MdMessage } from "react-icons/md";
-import { Link, useNavigate } from "react-router-dom";
 import LoadingSpinner from "../../components/Common/LoadingSpinner";
+import StatCard from "../../components/Dashboard/StatCard";
+import DashboardSection from "../../components/Dashboard/DashboardSection";
+import DashboardTable from "../../components/Dashboard/DashboardTable";
+import ActionButton from "../../components/Common/ActionButton";
+import { MdSchool, MdPeople, MdAddCircle, MdEdit, MdDelete, MdSettings } from 'react-icons/md';
+import { getDatabase, ref, query, orderByChild, equalTo, get, remove } from 'firebase/database';
+import { fetchCoursesByInstructor } from "../../utils/firebaseUtils"; // Assuming this function exists or will be created
 
 const InstructorDashboard = () => {
+  const { user, loading: authLoading, error: authError } = useAuth();
   const [courses, setCourses] = useState([]);
-  const { user, role, loading: authLoading, error: authError } = useAuth();
+  const [stats, setStats] = useState({ courses: 0, students: 0 });
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState("");
-  const navigate = useNavigate();
+
+  const database = getDatabase();
+
+  const loadInstructorData = useCallback(async (instructorId) => {
+    setCoursesLoading(true);
+    setCoursesError("");
+    try {
+      // Assuming fetchCoursesByInstructor gets courses and calculates total enrolled students
+      const instructorCourses = await fetchCoursesByInstructor(instructorId);
+      setCourses(instructorCourses);
+
+      // Calculate stats
+      let totalStudents = 0;
+      instructorCourses.forEach(course => {
+          totalStudents += Object.keys(course.enrollments || {}).length;
+      });
+      setStats({ courses: instructorCourses.length, students: totalStudents });
+
+    } catch (err) {
+      console.error("Error loading instructor data:", err);
+      setCoursesError("Erreur lors du chargement des données formateur.");
+    } finally {
+      setCoursesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadCourses = async () => {
-      if (!authLoading && user && role === "instructor") {
-        try {
-          setCoursesLoading(true);
-          setCoursesError("");
-
-          const allCourses = await fetchCoursesFromDatabase();
-
-          const instructorCourses = allCourses.filter(
-            (course) => course.instructorId === user.uid
-          );
-
-          setCourses(instructorCourses);
-        } catch (error) {
-          
-          setCoursesError(
-            "Une erreur s'est produite lors du chargement des cours."
-          );
-        } finally {
-          setCoursesLoading(false);
-        }
-      } else if (!authLoading && (!user || role !== "instructor")) {
+    if (user && user.normalizedRole === 'instructor') {
+      loadInstructorData(user.uid);
+    } else if (!authLoading) {
         setCoursesLoading(false);
-        setCourses([]);
+         // Handle case where user is not an instructor if needed
+    }
+  }, [user, authLoading, loadInstructorData]);
+
+  const handleDeleteCourse = async (courseId) => {
+      if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette formation ?")) return;
+      try {
+        await remove(ref(database, `elearning/courses/${courseId}`));
+        // Optionally remove related modules/enrollments
+        setCourses(prev => prev.filter(c => c.id !== courseId));
+        // Re-fetch data to update stats
+        if (user) loadInstructorData(user.uid);
+      } catch (err) {
+          console.error("Error deleting course:", err);
+          setCoursesError("Erreur lors de la suppression de la formation.");
       }
-    };
+  };
 
-    loadCourses();
-  }, [user, role, authLoading]);
+  // --- Define Columns and Actions for Courses Table ---
+  const courseColumns = [
+    {
+      key: 'title',
+      header: 'Titre',
+      render: (course) => (
+        <Link to={`/course/${course.id}`} className="hover:underline font-medium text-gray-900">
+          {course.title || 'Formation sans titre'}
+        </Link>
+      ),
+    },
+    {
+      key: 'enrollments',
+      header: 'Inscriptions',
+      render: (course) => (
+        // Optional: Link to a student list page for this course
+        <span className="text-gray-500">{Object.keys(course.enrollments || {}).length}</span>
+      ),
+    },
+     {
+      key: 'status',
+      header: 'Statut',
+      render: (course) => (
+          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${course.isPublished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+              {course.isPublished ? 'Publié' : 'Brouillon'}
+          </span>
+      ),
+    },
+  ];
 
+  const courseActions = [
+     {
+      label: 'Gérer Modules',
+      icon: MdSettings,
+      variant: 'secondary',
+      to: (course) => `/instructor/course-management/${course.id}`,
+    },
+    {
+      icon: MdEdit,
+      variant: 'info',
+      to: (course) => `/instructor/course-form/${course.id}`,
+    },
+    {
+      icon: MdDelete,
+      variant: 'danger',
+      onClick: (course) => handleDeleteCourse(course.id),
+    },
+  ];
+
+  // Combined loading/error checks
   if (authLoading) {
     return <LoadingSpinner />;
   }
-
   if (authError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-100 p-4 rounded-lg text-red-700">
-          <p>{authError}</p>
-        </div>
-      </div>
-    );
+       return <p className="text-red-500 text-center">{authError}</p>;
   }
-
-  if (coursesError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-100 p-4 rounded-lg text-red-700">
-          <p>{coursesError}</p>
-        </div>
-      </div>
-    );
+   if (!user || user.normalizedRole !== 'instructor') {
+      return <p className="text-red-500 text-center">Accès non autorisé.</p>;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
+    <>
+      <motion.h1
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.5 }}
+        className="text-3xl font-bold text-gray-800 mb-6"
       >
-        <h1 className="text-3xl font-bold mb-8">Tableau de bord formateur</h1>
+        Tableau de Bord Formateur
+      </motion.h1>
 
-        {/* Carte de bienvenue */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">
-            Bienvenue, {user?.prenom || "Formateur"}!
-          </h2>
-          <p className="text-gray-600">
-            Gérez vos cours et suivez les progrès de vos étudiants.
-          </p>
-        </div>
-
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-4">
-              <div className="bg-blue-100 p-3 rounded-full">
-                <MdSchool className="text-blue-600 text-2xl" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">Mes cours</h3>
-                <p className="text-3xl font-bold text-blue-600">
-                  {courses.length}
-                </p>
-              </div>
+       {coursesError && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span className="block sm:inline">{coursesError}</span>
             </div>
-          </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center gap-4">
-              <div className="bg-green-100 p-3 rounded-full">
-                <MdPeople className="text-green-600 text-2xl" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">Étudiants inscrits</h3>
-                <p className="text-3xl font-bold text-green-600">
-                  {courses.reduce(
-                    (total, course) => total + (course.students || 0),
-                    0
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+        <StatCard title="Mes Formations" value={stats.courses} icon={MdSchool} color="blue" />
+        <StatCard title="Étudiants Inscrits (Total)" value={stats.students} icon={MdPeople} color="green" />
+      </div>
 
-        {/* Actions rapides */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Actions rapides</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              to="/instructor/course-form"
-              className="bg-green-600 text-white p-4 rounded-lg text-center hover:bg-green-700 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdAdd />
-              Créer un cours
-            </Link>
-            <Link
-              to="/instructor/courses"
-              className="bg-secondary text-white p-4 rounded-lg text-center hover:bg-secondary/90 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdSchool />
-              Gérer mes cours
-            </Link>
-            <Link
-              to="/messages"
-              className="bg-amber-600 text-white p-4 rounded-lg text-center hover:bg-amber-700 transition-colors duration-300 flex items-center justify-center gap-2"
-            >
-              <MdMessage />
-              Messages
-            </Link>
-          </div>
-        </div>
-
-        {/* Liste des cours */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Mes cours</h2>
-            {coursesLoading && <LoadingSpinner size="small" />}
-            <Link
-              to="/instructor/courses"
-              className="text-secondary hover:underline flex items-center gap-1"
-            >
-              Voir tous mes cours
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </Link>
-          </div>
-
-          {coursesLoading ? (
-            <div className="text-center py-8">Chargement des cours...</div>
-          ) : courses.length > 0 ? (
-            <div className="space-y-4">
-              {courses.slice(0, 3).map((course) => (
-                <div
-                  key={course.id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors duration-300"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-medium text-lg">
-                        {course.title || course.titre || "Cours sans titre"}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {course.students || 0} étudiants inscrits
-                      </p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Link
-                        to={`/course/${course.id}`}
-                        className="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm hover:bg-gray-300 transition-colors duration-300"
-                      >
-                        Aperçu
-                      </Link>
-                      <button
-                        onClick={() => {
-                          navigate(`/instructor/course-management/${course.id}`);
-                        }}
-                        className="bg-secondary text-white px-3 py-1 rounded-md text-sm hover:bg-secondary/90 transition-colors duration-300"
-                      >
-                        Modules
-                      </button>
-                      <button
-                        onClick={() => {
-                          navigate(`/instructor/course-form/${course.id}`);
-                        }}
-                        className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-700 transition-colors duration-300"
-                      >
-                        Éditer
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {courses.length > 3 && (
-                <div className="text-center mt-4">
-                  <Link
-                    to="/instructor/courses"
-                    className="text-secondary hover:underline inline-flex items-center"
-                  >
-                    Voir tous mes cours ({courses.length})
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 ml-1"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </Link>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-600 mb-4">
-                {coursesError
-                  ? coursesError
-                  : "Vous n'avez pas encore créé de cours."}
-              </p>
-              <div className="mt-4 flex justify-center space-x-4">
-                <Link
-                  to="/instructor/course-form"
-                  className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300 flex items-center gap-2"
-                >
-                  <MdAdd />
-                  Créer un cours
-                </Link>
-                <Link
-                  to="/courses"
-                  className="text-secondary border border-secondary px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors duration-300"
-                >
-                  Explorer les cours
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
+      {/* Courses Section using DashboardTable */}
+      <DashboardSection
+        title="Mes Formations Créées"
+        isLoading={coursesLoading}
+        actionButton={
+          <ActionButton to="/instructor/course-form" icon={MdAddCircle}>
+            Créer Formation
+          </ActionButton>
+        }
+      >
+        <DashboardTable
+          columns={courseColumns}
+          data={courses}
+          actions={courseActions}
+          isLoading={coursesLoading} // Pass loading state
+          // No view all link needed if this shows all instructor courses
+          maxRows={10} // Or however many you want to show initially
+        />
+      </DashboardSection>
+    </>
   );
 };
 

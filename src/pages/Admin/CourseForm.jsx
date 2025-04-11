@@ -1,18 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   fetchCourseById,
   fetchSpecialitesFromDatabase,
   fetchDisciplinesFromDatabase,
-  // fetchInstructorById, // Likely no longer needed directly
-  // fetchCompleteUserInfo, // Replaced by useAuth
+  fetchFormateursFromDatabase,
 } from "../../utils/firebaseUtils";
 import { database } from "../../../firebaseConfig";
 import { ref, set } from "firebase/database";
-// import { getAuth } from "firebase/auth"; // Replaced by useAuth
-import { useAuth } from "../../hooks/useAuth"; // Import useAuth
+import { useAuth } from "../../hooks/useAuth";
 import ModuleManagerCreation from "../../components/CourseModules/ModuleManagerCreation";
-import LoadingSpinner from "../../components/Common/LoadingSpinner"; // Import LoadingSpinner
+import LoadingSpinner from "../../components/Common/LoadingSpinner";
+import CourseFormFields from "../../components/Course/CourseFormFields";
+import ActionButton from "../../components/Common/ActionButton";
+import { MdSave, MdCancel, MdArrowBack } from "react-icons/md";
 
 // Fonction pour générer un ID unique sans dépendre de la bibliothèque uuid
 const generateUniqueId = () => {
@@ -20,20 +21,20 @@ const generateUniqueId = () => {
 };
 
 const CourseForm = () => {
-  const { id: courseIdParam } = useParams(); // Rename id to avoid conflict
+  const { id: courseIdParam } = useParams();
   const navigate = useNavigate();
-  const { user, role, loading: authLoading } = useAuth(); // Use the hook
+  const { user, loading: authLoading } = useAuth();
   const isEditMode = !!courseIdParam;
 
-  const [loadingData, setLoadingData] = useState(true); // Renamed component loading state
+  const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [permissionError, setPermissionError] = useState(""); // Specific error for permissions
+  const [permissionError, setPermissionError] = useState("");
   const [success, setSuccess] = useState("");
   const [specialites, setSpecialites] = useState([]);
   const [disciplines, setDisciplines] = useState([]);
   const [filteredDisciplines, setFilteredDisciplines] = useState([]);
-  // const [userInfo, setUserInfo] = useState(null); // Removed, use user & role from useAuth
+  const [allInstructors, setAllInstructors] = useState([]);
 
   const [courseData, setCourseData] = useState({
     title: "",
@@ -41,132 +42,92 @@ const CourseForm = () => {
     image: "",
     level: "Débutant",
     duration: "",
-    price: 0,
+    price: undefined,
     specialiteId: "",
     disciplineId: "",
     instructorId: "",
   });
 
-  // État pour les modules du cours
   const [courseModules, setCourseModules] = useState([]);
+  const [activeTab, setActiveTab] = useState("info");
 
-  // État pour suivre l'onglet actif
-  const [activeTab, setActiveTab] = useState("info"); // "info" ou "modules"
+  const loadInitialData = useCallback(async () => {
+    if (authLoading || !user) return;
 
-  useEffect(() => {
-    // Ensure user is authenticated and role is loaded before proceeding
-    if (authLoading) {
-      return; // Wait for auth state to resolve
-    }
+    try {
+      setLoadingData(true);
+      setError("");
+      setPermissionError("");
 
-    // If no user or role, likely redirecting via ProtectedRoute, but handle defensively
-    if (!user || !role) {
-      setPermissionError("Authentification requise.");
-      setLoadingData(false);
-      // Optional: Redirect after a delay, but ProtectedRoute should handle this
-      // setTimeout(() => navigate('/login'), 1000);
-      return;
-    }
+      const [specialitesData, disciplinesData, instructorsData] = await Promise.all([
+        fetchSpecialitesFromDatabase(),
+        fetchDisciplinesFromDatabase(),
+        fetchFormateursFromDatabase(),
+      ]);
+      setSpecialites(specialitesData);
+      setDisciplines(disciplinesData);
+      setAllInstructors(instructorsData);
 
-    // Basic role check (Admin or Instructor)
-    const isAdmin = role === "admin";
-    const isInstructor = role === "instructor";
-
-    if (!isAdmin && !isInstructor) {
-      setPermissionError(
-        "Vous n'avez pas les permissions nécessaires pour accéder à cette page."
-      );
-      setLoadingData(false);
-      // Optional: Redirect or show message
-      // setTimeout(() => navigate(getDashboardPath(role)), 1000);
-      return;
-    }
-
-    // Now load course-specific data
-    const loadCourseData = async () => {
-      try {
-        setLoadingData(true);
-        setPermissionError(""); // Clear previous errors
-        setError("");
-
-        // Fetch Specialites and Disciplines (needed for both create and edit)
-        const [specialitesData, disciplinesData] = await Promise.all([
-          fetchSpecialitesFromDatabase(),
-          fetchDisciplinesFromDatabase(),
-        ]);
-        setSpecialites(specialitesData);
-        setDisciplines(disciplinesData);
-
-        // If Edit Mode: Fetch course data and perform specific permission check
-        if (isEditMode) {
-          const course = await fetchCourseById(courseIdParam);
-          if (course) {
-            // Edit Permission Check: Must be Admin OR the course's instructor
-            if (course.instructorId !== user.uid && !isAdmin) {
-              setPermissionError(
-                "Vous n'avez pas les permissions pour modifier ce cours."
-              );
-              setLoadingData(false);
-              return; // Stop loading if no permission
+      if (isEditMode) {
+        const course = await fetchCourseById(courseIdParam);
+        if (course) {
+          if (user.normalizedRole !== 'admin') {
+            if (course.instructorId !== user.uid) {
+              setPermissionError("Accès refusé.");
+              return;
             }
+          }
 
-            // Set form data from fetched course
-            setCourseData({
-              title: course.title || course.titre || "",
-              description: course.description || "",
-              image: course.image || "",
-              level: course.level || "Débutant",
-              duration: course.duration || course.duree || "",
-              price: course.price || 0,
-              specialiteId: course.specialiteId || "",
-              disciplineId: course.disciplineId || "",
-              instructorId: course.instructorId || user.uid, // Ensure instructorId is set
-            });
+          setCourseData({
+            title: course.title || "",
+            description: course.description || "",
+            image: course.image || "",
+            level: course.level || "Débutant",
+            duration: course.duration || "",
+            price: course.price === undefined ? '' : course.price,
+            specialiteId: course.specialiteId || "",
+            disciplineId: course.disciplineId || "",
+            instructorId: course.instructorId || "",
+          });
 
-            // Filter disciplines based on fetched speciality
-            if (course.specialiteId) {
-              const filtered = disciplinesData.filter(
-                (discipline) => discipline.specialiteId === course.specialiteId
-              );
-              setFilteredDisciplines(filtered);
-            }
+          if (course.modules) {
+            const modulesArray = Object.entries(course.modules).map(
+              ([moduleId, moduleData]) => ({
+                ...moduleData,
+                id: moduleId,
+                evaluations: moduleData.evaluations || {},
+              })
+            );
+            const sortedModules = modulesArray.sort(
+              (a, b) => (a.order || 0) - (b.order || 0)
+            );
+            setCourseModules(sortedModules);
+          }
 
-            // Load modules if they exist
-            if (course.modules) {
-              const modulesArray = Object.entries(course.modules).map(
-                ([moduleId, moduleData]) => ({
-                  ...moduleData,
-                  id: moduleId,
-                  evaluations: moduleData.evaluations || {},
-                })
-              );
-              const sortedModules = modulesArray.sort(
-                (a, b) => (a.order || 0) - (b.order || 0)
-              );
-              setCourseModules(sortedModules);
-            }
-          } else {
-            setError("Cours non trouvé.");
+          if (course.specialiteId) {
+            const filtered = disciplinesData.filter(
+              (discipline) => discipline.specialiteId === course.specialiteId
+            );
+            setFilteredDisciplines(filtered);
           }
         } else {
-          // Create Mode: Set current user as default instructor
-          setCourseData((prev) => ({
-            ...prev,
-            instructorId: user.uid,
-          }));
+          setError("Cours non trouvé.");
         }
-      } catch (err) {
-        
-        setError("Erreur lors du chargement des données du cours.");
-      } finally {
-        setLoadingData(false);
+      } else {
+        // Create Mode: Set default instructor if needed, or leave empty for selection
       }
-    };
+    } catch (err) {
+      console.error("Error loading form data:", err);
+      setError("Erreur lors du chargement des données.");
+    } finally {
+      setLoadingData(false);
+    }
+  }, [courseIdParam, isEditMode, user, authLoading]);
 
-    loadCourseData();
-  }, [courseIdParam, isEditMode, user, role, authLoading, navigate]); // Add dependencies
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
-  // Effect to filter disciplines when speciality changes (remains the same)
   useEffect(() => {
     if (courseData.specialiteId) {
       const filtered = disciplines.filter(
@@ -186,36 +147,20 @@ const CourseForm = () => {
   }, [courseData.specialiteId, courseData.disciplineId, disciplines]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setCourseData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const val = type === 'number' ? (value === '' ? undefined : parseFloat(value)) : value;
+    setCourseData((prev) => ({ ...prev, [name]: val }));
   };
 
-  // handleSubmit logic remains largely the same, but uses user.uid implicitly via courseData.instructorId
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Ensure user is still valid before saving
-    if (!user || !role) {
-      setError("Erreur d'authentification. Impossible de sauvegarder.");
+    if (!user || user.normalizedRole !== 'admin') {
+      setError("Permission refusée.");
       return;
     }
 
-    // Permission check before saving (Admin or Instructor who owns the course)
-    const isAdmin = role === "admin";
-    const isOwnerInstructor =
-      role === "instructor" && courseData.instructorId === user.uid;
-
-    // In edit mode, only admin or owner instructor can save
-    if (isEditMode && !isAdmin && !isOwnerInstructor) {
-      setError(
-        "Vous n'avez pas les droits pour sauvegarder les modifications de ce cours."
-      );
-      return;
-    }
-    // In create mode, only admin or instructor can save (already checked initially, but double-check)
-    if (!isEditMode && role !== "admin" && role !== "instructor") {
-      setError("Vous n'avez pas les droits pour créer un cours.");
-      return;
+    if (!courseData.instructorId) {
+      throw new Error("Veuillez assigner un formateur.");
     }
 
     setSaving(true);
@@ -223,19 +168,14 @@ const CourseForm = () => {
     setSuccess("");
 
     try {
-      // Validation
       if (!courseData.title || courseData.title.trim().length < 5) {
-        throw new Error(
-          "Le titre est obligatoire et doit contenir au moins 5 caractères"
-        );
+        throw new Error("Le titre est obligatoire et doit contenir au moins 5 caractères");
       }
       if (
         !courseData.description ||
         courseData.description.trim().length < 10
       ) {
-        throw new Error(
-          "La description est obligatoire et doit contenir au moins 10 caractères"
-        );
+        throw new Error("La description est obligatoire et doit contenir au moins 10 caractères");
       }
       if (!courseData.duration) {
         throw new Error("La durée estimée est obligatoire");
@@ -251,84 +191,57 @@ const CourseForm = () => {
       }
 
       const courseId = isEditMode ? courseIdParam : generateUniqueId();
-
-      // Convert modules array back to object for Firebase
-      const modulesObject = courseModules.reduce((acc, module, index) => {
-        // Ensure module has an id, generate if missing (shouldn't happen with ModuleManagerCreation)
-        const moduleId = module.id || generateUniqueId();
-        acc[moduleId] = {
-          ...module,
-          order: index, // Ensure order is set based on array index
-          id: undefined, // Remove temporary array ID before saving
-        };
-        // Remove potential temporary 'evaluationsArray' if it exists from ModuleManagerCreation
-        delete acc[moduleId].evaluationsArray;
-        // Ensure evaluations are stored correctly (assuming they are an object)
-        acc[moduleId].evaluations = module.evaluations || {};
-
-        return acc;
-      }, {});
+      const coursePath = `elearning/courses/${courseId}`;
 
       const dataToSave = {
         ...courseData,
         id: courseId,
-        // Ensure instructorId is correctly set from state (already updated)
-        instructorId: courseData.instructorId || user.uid,
-        modules: modulesObject,
-        // Add/update timestamps
-        createdAt: isEditMode
-          ? courseData.createdAt || new Date().toISOString()
-          : new Date().toISOString(),
+        createdAt: isEditMode ? (await get(ref(database, `${coursePath}/createdAt`))).val() || new Date().toISOString() : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        price: courseData.price === undefined ? 0 : Number(courseData.price),
+        duration: courseData.duration === undefined ? 0 : Number(courseData.duration),
       };
 
-      // Remove legacy fields before saving if they sneaked in
-      delete dataToSave.titre;
-      delete dataToSave.duree;
+      await set(ref(database, coursePath), dataToSave);
 
-      const courseRef = ref(database, `elearning/courses/${courseId}`);
-      await set(courseRef, dataToSave);
-
-      setSuccess(`Cours ${isEditMode ? "mis à jour" : "créé"} avec succès!`);
-      setTimeout(() => {
-        navigate(`/courses/${courseId}`); // Redirect to course page
-      }, 1500);
-    } catch (err) {
-      
-      setError(`Erreur lors de la sauvegarde: ${err.message}`);
+      setSuccess(`Formation ${isEditMode ? 'mise à jour' : 'créée'} avec succès !`);
+      if (!isEditMode) {
+        setCourseData({ ...courseData, instructorId: '' });
+        setActiveTab('info');
+        setCourseModules([]);
+      }
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (error) {
+      console.error("Error saving course:", error);
+      setError(error.message || "Erreur lors de la sauvegarde.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Render Loading Spinner if auth is loading or initial data is loading
+  const handleModulesChange = (newModules) => {
+    setCourseModules(newModules);
+  };
+
   if (authLoading || loadingData) {
     return <LoadingSpinner />;
   }
-
-  // Render Permission Error message if exists
   if (permissionError) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center text-red-600">
-        <p>{permissionError}</p>
-        <Link
-          to="/"
-          className="text-blue-500 hover:underline mt-4 inline-block"
-        >
-          Retour à l'accueil
-        </Link>
-      </div>
-    );
+    return <p className="text-red-500 p-4">{permissionError}</p>;
   }
 
-  // Main form rendering
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">
-        {isEditMode ? "Modifier le Cours" : "Créer un Nouveau Cours"}
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <Link to="/admin/courses" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
+        <MdArrowBack className="mr-2" /> Retour à la liste
+      </Link>
+      <h1 className="text-2xl font-bold mb-6">
+        {isEditMode ? "Modifier la Formation" : "Créer une Nouvelle Formation"}
       </h1>
 
-      {/* Tabs */}
+      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+      {success && <div className="bg-green-100 text-green-700 p-3 rounded mb-4">{success}</div>}
+
       <div className="mb-6 border-b border-gray-200">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
@@ -356,269 +269,49 @@ const CourseForm = () => {
         </nav>
       </div>
 
-      {/* Display General Errors/Success */}
-      {error && (
-        <div
-          className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
-          role="alert"
-        >
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-      {success && (
-        <div
-          className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4"
-          role="alert"
-        >
-          <span className="block sm:inline">{success}</span>
-        </div>
-      )}
-
-      {/* Form Content based on Active Tab */}
-      {activeTab === "info" && (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* --- Course Info Fields --- */}
-          <div>
-            <label
-              htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Titre du Cours
-            </label>
-            <input
-              type="text"
-              id="title"
-              name="title"
-              value={courseData.title}
-              onChange={handleChange}
-              required
-              minLength={5}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Ex: Introduction à React"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Description
-            </label>
-            <textarea
-              id="description"
-              name="description"
-              rows={4}
-              value={courseData.description}
-              onChange={handleChange}
-              required
-              minLength={10}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Décrivez le contenu et les objectifs du cours"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label
-                htmlFor="level"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Niveau
-              </label>
-              <select
-                id="level"
-                name="level"
-                value={courseData.level}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-              >
-                <option value="Débutant">Débutant</option>
-                <option value="Intermédiaire">Intermédiaire</option>
-                <option value="Avancé">Avancé</option>
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="duration"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Durée Estimée
-              </label>
-              <input
-                type="text"
-                id="duration"
-                name="duration"
-                value={courseData.duration}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Ex: 10 heures, 3 semaines"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label
-                htmlFor="price"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Prix (0 pour gratuit)
-              </label>
-              <input
-                type="number"
-                id="price"
-                name="price"
-                value={courseData.price}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="image"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                URL de l'Image de Couverture (Optionnel)
-              </label>
-              <input
-                type="url"
-                id="image"
-                name="image"
-                value={courseData.image}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label
-                htmlFor="specialiteId"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Spécialité
-              </label>
-              <select
-                id="specialiteId"
-                name="specialiteId"
-                value={courseData.specialiteId}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-              >
-                <option value="">-- Sélectionnez une spécialité --</option>
-                {specialites.map((spec) => (
-                  <option key={spec.id} value={spec.id}>
-                    {spec.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="disciplineId"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Discipline
-              </label>
-              <select
-                id="disciplineId"
-                name="disciplineId"
-                value={courseData.disciplineId}
-                onChange={handleChange}
-                required
-                disabled={
-                  !courseData.specialiteId || filteredDisciplines.length === 0
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white disabled:bg-gray-100"
-              >
-                <option value="">
-                  {courseData.specialiteId
-                    ? "-- Sélectionnez une discipline --"
-                    : "-- Sélectionnez d&apos;abord une spécialité --"}
-                </option>
-                {filteredDisciplines.map((disc) => (
-                  <option key={disc.id} value={disc.id}>
-                    {disc.name}
-                  </option>
-                ))}
-              </select>
-              {!courseData.specialiteId && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Veuillez sélectionner une spécialité pour voir les
-                  disciplines.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Hidden instructorId - could also be displayed as read-only */}
-          <input
-            type="hidden"
-            name="instructorId"
-            value={courseData.instructorId}
+      <form onSubmit={handleSubmit}>
+        {activeTab === 'info' && (
+          <CourseFormFields
+            formData={courseData}
+            handleChange={handleChange}
+            specialites={specialites}
+            filteredDisciplines={filteredDisciplines}
+            allInstructors={allInstructors}
+            isInstructorForm={false}
           />
+        )}
 
-          {/* --- Form Actions --- */}
-          <div className="flex justify-end space-x-4 pt-4">
-            <Link
-              to={isEditMode ? `/courses/${courseIdParam}` : "/admin/dashboard"} // Adjust cancel path
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Annuler
-            </Link>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving
-                ? "Sauvegarde en cours..."
-                : isEditMode
-                ? "Mettre à jour les informations"
-                : "Créer le cours"}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Module Manager Tab */}
-      {activeTab === "modules" && (
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Gestion des Modules</h2>
-          <p className="mb-4 text-sm text-gray-600">
-            Ajoutez, modifiez, supprimez et réorganisez les modules de votre
-            cours. N&apos;oubliez pas de sauvegarder les informations générales
-            du cours (même si inchangées) pour enregistrer les modifications
-            apportées aux modules.
-          </p>
+        {activeTab === 'modules' && isEditMode && (
           <ModuleManagerCreation
-            modules={courseModules}
-            setModules={setCourseModules}
-            courseId={courseIdParam || null} // Pass courseId if available
+            courseId={courseIdParam}
+            initialModules={courseModules}
+            onModulesChange={handleModulesChange}
           />
-          {/* Add a save button specifically for modules if needed, or rely on the main form save */}
-          <div className="flex justify-end space-x-4 pt-4">
-            {/* Optional: Add a separate save button just for modules if workflow demands it */}
-            {/* For simplicity now, we save everything via the main form's submit */}
-            <button
-              onClick={handleSubmit} // Trigger the main form save
-              disabled={saving}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving
-                ? "Sauvegarde en cours..."
-                : "Sauvegarder Cours et Modules"}
-            </button>
-          </div>
+        )}
+        {activeTab === 'modules' && !isEditMode && (
+          <p className="text-center text-gray-500 p-4">Sauvegardez d'abord les informations générales pour pouvoir ajouter des modules.</p>
+        )}
+
+        <div className="mt-8 pt-5 border-t border-gray-200 flex justify-end gap-3">
+          <ActionButton
+            type="button"
+            variant="light"
+            onClick={() => navigate('/admin/courses')}
+            icon={MdCancel}
+            disabled={saving}
+          >
+            Annuler
+          </ActionButton>
+          <ActionButton
+            type="submit"
+            variant="primary"
+            icon={MdSave}
+            disabled={saving || activeTab === 'modules'}
+          >
+            {saving ? 'Sauvegarde...' : (isEditMode ? 'Mettre à Jour' : 'Créer Formation')}
+          </ActionButton>
         </div>
-      )}
+      </form>
     </div>
   );
 };

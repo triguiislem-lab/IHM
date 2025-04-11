@@ -3,34 +3,27 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import LoadingSpinner from "../Common/LoadingSpinner";
 
-const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const { user, userRole, loading, isAuthenticated } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, loading, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  // console.log(`[ProtectedRoute] Location: ${location.pathname}, Loading: ${loading}, Authenticated: ${isAuthenticated}, Role: ${userRole}`);
-
   if (loading) {
-    // console.log(`[ProtectedRoute] Location: ${location.pathname}, Status: Waiting for auth loading`);
+    console.log("[ProtectedRoute] Loading auth state...");
     return <LoadingSpinner />;
   }
 
-  if (!isAuthenticated) {
-    // console.log(`[ProtectedRoute] Location: ${location.pathname}, Status: Not Authenticated, Redirecting to /login`);
+  const userRole = user?.normalizedRole;
+  console.log(
+    `[ProtectedRoute] Location: ${location.pathname}, Role Check: userRole='${userRole}', isAllowed=${isAuthenticated && allowedRoles.includes(userRole)}`
+  );
+
+  if (!isAuthenticated || (allowedRoles && !allowedRoles.includes(userRole))) {
+    console.log(
+      `[ProtectedRoute] Redirecting: isAuthenticated=${isAuthenticated}, allowedRoles=${allowedRoles}, userRole=${userRole}`
+    );
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check roles only if allowedRoles are specified
-  if (allowedRoles.length > 0) {
-    const isAllowed = allowedRoles.includes(userRole);
-    console.log(`[ProtectedRoute] Location: ${location.pathname}, Role Check: userRole='${userRole}', isAllowed=${isAllowed}`); // Log role check
-    if (!isAllowed) {
-        // console.log(`[ProtectedRoute] Location: ${location.pathname}, Status: Role Not Allowed, Redirecting to /${userRole}/dashboard`);
-      // Redirect to the user's specific dashboard if their role is known but not allowed for this route
-      return <Navigate to={`/${userRole || 'student'}/dashboard`} replace />;
-    }
-  }
-
-  // console.log(`[ProtectedRoute] Location: ${location.pathname}, Status: Auth OK, Rendering children`);
   return children;
 };
 

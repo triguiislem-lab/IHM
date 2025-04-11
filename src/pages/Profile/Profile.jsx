@@ -13,65 +13,45 @@ import {
   MdDashboard,
 } from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
+import LoadingSpinner from "../../components/Common/LoadingSpinner";
 import ProgressDashboard from "../../components/Progress/ProgressDashboard";
 
 const Profile = () => {
   const [userInfo, setUserInfo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("profile"); // "profile", "progress", "courses"
+  const [activeTab, setActiveTab] = useState("profile");
   const auth = getAuth();
 
   useEffect(() => {
     const loadUserInfo = async () => {
       try {
         const user = auth.currentUser;
-        
-
         if (user) {
-          // Récupérer les informations utilisateur depuis Firebase
           const info = await fetchCompleteUserInfo(user.uid);
-          
-
-          // S'assurer que info n'est pas null avant de continuer
           if (info) {
-            setUserInfo(info);
+            const role = info.role || info.userType || 'student';
+            setUserInfo({ ...info, role });
+            setActiveTab('profile');
           } else {
-            
             setUserInfo({
-              firstName: "Utilisateur",
-              lastName: "",
-              email: user.email || "",
-              role: "student",
-              roleInfo: {
-                progression: 0,
-                avatar:
-                  "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-              },
-              enrollments: [],
+              firstName: "Utilisateur", lastName: "", email: user.email || "",
+              role: "student", roleInfo: { avatar: "" }, enrollments: [],
               createdAt: new Date().toISOString(),
             });
+            setActiveTab('profile');
           }
         } else {
-          
           setUserInfo(null);
         }
       } catch (error) {
-        
-        // Créer un utilisateur par défaut en cas d'erreur
+        console.error("Error loading user info:", error);
         if (auth.currentUser) {
           setUserInfo({
-            firstName: "Utilisateur",
-            lastName: "",
-            email: auth.currentUser.email || "",
-            role: "student",
-            roleInfo: {
-              progression: 0,
-              avatar:
-                "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-            },
-            enrollments: [],
+            firstName: "Utilisateur", lastName: "", email: auth.currentUser.email || "",
+            role: "student", roleInfo: { avatar: "" }, enrollments: [],
             createdAt: new Date().toISOString(),
           });
+          setActiveTab('profile');
         } else {
           setUserInfo(null);
         }
@@ -80,9 +60,7 @@ const Profile = () => {
       }
     };
 
-    // Ajouter un écouteur d'événement pour les changements d'authentification
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      
       if (user) {
         loadUserInfo();
       } else {
@@ -91,14 +69,13 @@ const Profile = () => {
       }
     });
 
-    // Nettoyer l'écouteur lors du démontage du composant
     return () => unsubscribe();
-  }, []);
+  }, [auth]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -130,13 +107,12 @@ const Profile = () => {
           className="max-w-4xl mx-auto"
         >
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            {/* Header */}
             <div className="bg-gradient-to-r from-secondary to-primary h-48 relative">
               <div className="absolute -bottom-16 left-8">
                 <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-white">
                   <img
                     src={getAvatarUrl(userInfo)}
-                    alt={`${userInfo.prenom || ""} ${userInfo.nom || ""}`}
+                    alt={`${userInfo.prenom || userInfo.firstName || ""} ${userInfo.nom || userInfo.lastName || ""}`}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.target.src =
@@ -147,7 +123,7 @@ const Profile = () => {
               </div>
               <div className="absolute bottom-4 right-8">
                 <Link
-                  to="/edit-profile"
+                  to={`/edit-profile`}
                   className="bg-white text-secondary px-4 py-2 rounded-full flex items-center gap-2 hover:bg-gray-100 transition-colors duration-300"
                 >
                   <MdEdit />
@@ -156,7 +132,6 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* Navigation Tabs */}
             <div className="flex border-b pt-20 px-8">
               <button
                 className={`px-4 py-2 font-medium ${
@@ -171,40 +146,45 @@ const Profile = () => {
                   Profil
                 </div>
               </button>
-              <button
-                className={`px-4 py-2 font-medium ${
-                  activeTab === "progress"
-                    ? "text-secondary border-b-2 border-secondary"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setActiveTab("progress")}
-              >
-                <div className="flex items-center gap-2">
-                  <MdDashboard />
-                  Progression
-                </div>
-              </button>
-              <button
-                className={`px-4 py-2 font-medium ${
-                  activeTab === "courses"
-                    ? "text-secondary border-b-2 border-secondary"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setActiveTab("courses")}
-              >
-                <div className="flex items-center gap-2">
-                  <MdSchool />
-                  Mes cours
-                </div>
-              </button>
+
+              {userInfo.role === 'student' && (
+                <button
+                  className={`px-4 py-2 font-medium ${
+                    activeTab === "progress"
+                      ? "text-secondary border-b-2 border-secondary"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  onClick={() => setActiveTab("progress")}
+                >
+                  <div className="flex items-center gap-2">
+                    <MdDashboard />
+                    Progression
+                  </div>
+                </button>
+              )}
+
+              {(userInfo.role === 'student' || userInfo.role === 'instructor') && (
+                <button
+                  className={`px-4 py-2 font-medium ${
+                    activeTab === "courses"
+                      ? "text-secondary border-b-2 border-secondary"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  onClick={() => setActiveTab("courses")}
+                >
+                  <div className="flex items-center gap-2">
+                    <MdSchool />
+                    Mes cours
+                  </div>
+                </button>
+              )}
             </div>
 
-            {/* Tab Content */}
             <div className="py-8 px-8">
               {activeTab === "profile" && (
                 <div>
                   <h1 className="text-3xl font-bold">
-                    {userInfo.firstName || userInfo.prenom}{" "}
+                    {userInfo.firstName || userInfo.prenom} {" "}
                     {userInfo.lastName || userInfo.nom}
                   </h1>
                   <p className="text-gray-600 mt-1 capitalize">
@@ -216,126 +196,99 @@ const Profile = () => {
                       ? "Administrateur"
                       : userInfo.userType || userInfo.role || "Utilisateur"}
                   </p>
-                </div>
-              )}
+                  <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h2 className="text-xl font-semibold border-b pb-2">
+                        Informations personnelles
+                      </h2>
 
-              {activeTab === "progress" && <ProgressDashboard />}
-
-              {activeTab === "courses" && (
-                <div className="text-center py-8">
-                  <p className="text-gray-600 mb-4">Voir vos cours inscrits</p>
-                  <Link
-                    to="/my-courses"
-                    className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300"
-                  >
-                    Voir mes cours
-                  </Link>
-                </div>
-              )}
-
-              {activeTab === "profile" && (
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h2 className="text-xl font-semibold border-b pb-2">
-                      Informations personnelles
-                    </h2>
-
-                    <div className="flex items-center gap-3">
-                      <MdPerson className="text-secondary text-xl" />
-                      <div>
-                        <p className="text-sm text-gray-500">Nom complet</p>
-                        <p>
-                          {userInfo.firstName || userInfo.prenom}{" "}
-                          {userInfo.lastName || userInfo.nom}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <MdPerson className="text-secondary text-xl" />
+                        <div>
+                          <p className="text-sm text-gray-500">Nom complet</p>
+                          <p>
+                            {userInfo.firstName || userInfo.prenom} {" "}
+                            {userInfo.lastName || userInfo.nom}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <MdEmail className="text-secondary text-xl" />
-                      <div>
-                        <p className="text-sm text-gray-500">Email</p>
-                        <p>{userInfo.email}</p>
+                      <div className="flex items-center gap-3">
+                        <MdEmail className="text-secondary text-xl" />
+                        <div>
+                          <p className="text-sm text-gray-500">Email</p>
+                          <p>{userInfo.email || 'N/A'}</p>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <MdCalendarToday className="text-secondary text-xl" />
-                      <div>
-                        <p className="text-sm text-gray-500">Inscrit depuis</p>
-                        <p>
-                          {new Date(userInfo.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {(userInfo.role === "student" ||
-                      userInfo.userType === "apprenant") &&
-                      userInfo.roleInfo && (
+                      {userInfo.createdAt && (
                         <div className="flex items-center gap-3">
-                          <MdStar className="text-secondary text-xl" />
+                          <MdCalendarToday className="text-secondary text-xl" />
                           <div>
-                            <p className="text-sm text-gray-500">Progression</p>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-                              <div
-                                className="bg-secondary h-2.5 rounded-full"
-                                style={{
-                                  width: `${
-                                    userInfo.roleInfo.progression || 0
-                                  }%`,
-                                }}
-                              ></div>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {userInfo.roleInfo.progression || 0}% complété
-                            </p>
+                            <p className="text-sm text-gray-500">Membre depuis</p>
+                            <p>{new Date(userInfo.createdAt).toLocaleDateString()}</p>
                           </div>
                         </div>
                       )}
-                  </div>
-
-                  <div className="space-y-4">
-                    <h2 className="text-xl font-semibold border-b pb-2">
-                      Formations inscrites
-                    </h2>
-
-                    {userInfo.enrollments && userInfo.enrollments.length > 0 ? (
-                      <div className="space-y-3">
-                        {userInfo.enrollments.map((enrollment, index) => (
-                          <Link
-                            key={index}
-                            to={`/course/${enrollment.courseId}`}
-                            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-300"
-                          >
-                            <MdSchool className="text-secondary text-xl" />
-                            <div>
-                              <p className="font-medium">
-                                {enrollment.courseName}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                Inscrit le{" "}
-                                {new Date(
-                                  enrollment.enrolledAt
-                                ).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg">
-                        <p className="text-gray-500 mb-4">
-                          Vous n'êtes inscrit à aucune formation
-                        </p>
-                        <Link
-                          to="/courses"
-                          className="bg-secondary text-white px-4 py-2 rounded-full hover:bg-secondary/90 transition-colors duration-300"
-                        >
-                          Parcourir les formations
-                        </Link>
+                    </div>
+                    {userInfo.role === 'student' && (
+                      <div className="space-y-4">
+                        <h2 className="text-xl font-semibold border-b pb-2">
+                          Formations inscrites
+                        </h2>
+                        {userInfo.enrollments && userInfo.enrollments.length > 0 ? (
+                          <div className="space-y-3">
+                            {userInfo.enrollments.map((enrollment, index) => (
+                              <Link
+                                key={enrollment.courseId || index}
+                                to={`/course/${enrollment.courseId}`}
+                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-300"
+                              >
+                                <MdSchool className="text-secondary text-xl" />
+                                <div>
+                                  <p className="font-medium">
+                                    {enrollment.courseName || `Cours ID: ${enrollment.courseId}`}
+                                  </p>
+                                  {enrollment.enrolledAt && (
+                                    <p className="text-sm text-gray-500">
+                                      Inscrit le{" "}
+                                      {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg">
+                            <p className="text-gray-500 mb-4">
+                              Vous n'êtes inscrit à aucune formation
+                            </p>
+                            <Link
+                              to="/courses"
+                              className="bg-secondary text-white px-4 py-2 rounded-full hover:bg-secondary/90 transition-colors duration-300"
+                            >
+                              Parcourir les formations
+                            </Link>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {activeTab === "progress" && userInfo.role === 'student' && <ProgressDashboard />}
+
+              {activeTab === "courses" && (userInfo.role === 'student' || userInfo.role === 'instructor') && (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 mb-4">
+                    {userInfo.role === 'student' ? 'Voir vos cours inscrits' : 'Gérer vos cours créés'}
+                  </p>
+                  <Link
+                    to={userInfo.role === 'student' ? '/student/enrollments' : '/instructor/courses'}
+                    className="bg-secondary text-white px-6 py-2 rounded-md hover:bg-secondary/90 transition-colors duration-300"
+                  >
+                    {userInfo.role === 'student' ? 'Voir mes inscriptions' : 'Gérer mes cours'}
+                  </Link>
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { database } from '../../firebaseConfig';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, set, update, query, orderByChild, equalTo } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { fetchCompleteUserInfo } from './fetchCompleteUserInfo';
 import { getCachedData, setCachedData } from './cacheUtils';
@@ -252,7 +252,6 @@ export const testFirebasePaths = async () => {
 			'/elearning/modules',
 			'/elearning/evaluations',
 			'/elearning/enrollments',
-			'/elearning/users',
 			'/elearning/feedback',
 			'/elearning/specialites',
 			'/elearning/disciplines',
@@ -767,7 +766,25 @@ export const fetchFeedbacksFromDatabase = async () => {
 
 // Récupérer les paramètres
 export const fetchSettingsFromDatabase = async () => {
-	return fetchDataFromPath('elearning/settings');
+	// Use caching logic if desired
+	const cacheKey = 'app_settings';
+	const cachedSettings = getCachedData(cacheKey);
+	if (cachedSettings) return cachedSettings;
+
+	try {
+		const settingsRef = ref(database, 'elearning/settings');
+		const snapshot = await get(settingsRef);
+		if (snapshot.exists()) {
+			const settings = snapshot.val();
+			setCachedData(cacheKey, settings); // Cache the fetched settings
+			return settings;
+		} else {
+			return null; // Or return default settings object
+		}
+	} catch (error) {
+		console.error("Error fetching settings from database:", error);
+		throw error;
+	}
 };
 
 // Récupérer un utilisateur spécifique par ID
@@ -1652,5 +1669,125 @@ export const fetchCoursesByFormation = async (formationId) => {
 	} catch (error) {
 		
 		throw error;
+	}
+};
+
+// *** NEW: Function to update settings in Firebase ***
+export const updateSettingsInDatabase = async (settingsData) => {
+	try {
+		const settingsRef = ref(database, 'elearning/settings');
+		// Use update() to merge changes, or set() to completely overwrite
+		await update(settingsRef, settingsData);
+		
+		// Update cache after successful save
+		const cacheKey = 'app_settings';
+		setCachedData(cacheKey, settingsData);
+		
+		console.log("Settings updated successfully in Firebase.");
+	} catch (error) {
+		console.error("Error updating settings in database:", error);
+		throw error;
+	}
+};
+
+/**
+ * Fetches the details of courses a specific student is enrolled in.
+ * @param {string} userId - The ID of the student.
+ * @returns {Promise<Array>} - A promise that resolves to an array of enrolled course objects.
+ */
+export const fetchEnrolledCoursesForStudent = async (userId) => {
+	if (!userId) {
+		console.warn("[fetchEnrolledCoursesForStudent] No userId provided.");
+		return [];
+	}
+
+	const cacheKey = `enrolled_courses_${userId}`;
+	const cachedData = getCachedData(cacheKey);
+	if (cachedData) {
+		
+		return cachedData;
+	}
+
+	try {
+		const enrollmentsRef = ref(database, `elearning/enrollments/byUser/${userId}`);
+		const enrollmentsSnapshot = await get(enrollmentsRef);
+
+		if (!enrollmentsSnapshot.exists()) {
+			
+			setCachedData(cacheKey, []);
+			return [];
+		}
+
+		const enrollmentsData = enrollmentsSnapshot.val();
+		const courseIds = Object.keys(enrollmentsData);
+		
+
+		if (courseIds.length === 0) {
+			setCachedData(cacheKey, []);
+			return [];
+		}
+
+		// Fetch details for each enrolled course
+		const coursePromises = courseIds.map(courseId => fetchCourseById(courseId));
+		const courses = await Promise.all(coursePromises);
+
+		// Filter out any null results (if a course wasn't found)
+		const validCourses = courses.filter(course => course !== null);
+
+		
+		setCachedData(cacheKey, validCourses);
+		return validCourses;
+
+	} catch (error) {
+		console.error("[fetchEnrolledCoursesForStudent] Error fetching enrolled courses:", error);
+		throw error; // Re-throw the error to be handled by the calling component
+	}
+};
+
+/**
+ * Fetches courses created by a specific instructor.
+ * @param {string} instructorId - The ID of the instructor.
+ * @returns {Promise<Array>} - A promise that resolves to an array of course objects created by the instructor.
+ */
+export const fetchCoursesByInstructor = async (instructorId) => {
+	if (!instructorId) {
+		console.warn("[fetchCoursesByInstructor] No instructorId provided.");
+		return [];
+	}
+
+	const cacheKey = `courses_by_instructor_${instructorId}`;
+	const cachedData = getCachedData(cacheKey);
+	if (cachedData) {
+		
+		return cachedData;
+	}
+
+	try {
+		const coursesRef = ref(database, 'elearning/courses');
+		const q = query(coursesRef, orderByChild('instructorId'), equalTo(instructorId));
+		const snapshot = await get(q);
+
+		if (!snapshot.exists()) {
+			
+			setCachedData(cacheKey, []);
+			return [];
+		}
+
+		const coursesData = snapshot.val();
+		const coursesArray = Object.entries(coursesData).map(([id, course]) => ({
+			id,
+			...course,
+		}));
+
+		// Optionally, enrich with instructor details if needed, though usually not necessary here
+		// as we already know the instructor ID.
+
+		
+		setCachedData(cacheKey, coursesArray);
+		return coursesArray;
+
+	} catch (error) {
+		console.error("[fetchCoursesByInstructor] Error fetching courses:", error);
+		throw error; // Re-throw the error
 	}
 };

@@ -28,7 +28,7 @@ import LoadingSpinner from "../../components/Common/LoadingSpinner";
 import { motion, AnimatePresence } from "framer-motion";
 
 const MessagesPage = () => {
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState([]);
   const [sentMessages, setSentMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -75,22 +75,32 @@ const MessagesPage = () => {
   }, [fetchMessages]);
 
   useEffect(() => {
-    if (!user || !role) return;
+    console.log("[MessagesPage useEffect] Running fetchRecipients effect...");
+    console.log("[MessagesPage useEffect] User:", user);
+    const role = user?.normalizedRole;
+    console.log("[MessagesPage useEffect] Derived Role:", role);
+
+    if (!user || !role) {
+        console.log("[MessagesPage useEffect] Exiting early: User or Role not available yet.");
+        return;
+    }
 
     const fetchRecipients = async () => {
+        console.log("[MessagesPage fetchRecipients] Fetching recipients...");
       try {
         const availableRecipients = await getAvailableRecipients(
           user.uid,
           role
         );
+        console.log("[MessagesPage fetchRecipients] Received recipients:", availableRecipients);
         setRecipients(availableRecipients);
       } catch (err) {
-        
+        console.error("[MessagesPage fetchRecipients] Error fetching recipients:", err);
       }
     };
 
     fetchRecipients();
-  }, [user, role]);
+  }, [user]);
 
   const handleMarkAsRead = useCallback(
     async (messageId, isRead = true) => {

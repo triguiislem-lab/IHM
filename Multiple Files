@@ -1,0 +1,133 @@
+import React, { useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+import { LoadingSpinner } from '../components/LoadingSpinner';
+
+const EditProfile = () => {
+  const { user, loading: authLoading } = useAuth();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of role where needed
+};
+
+const InstructorCourseManagement = () => {
+  const { user, loading: authLoading } = useAuth();
+  const { courseId } = useParams();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of role where needed
+};
+
+const CourseForm = ({ course, onSave, onCancel, isEditing }) => {
+  const { user, loading } = useAuth();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of userRole where needed
+};
+
+const InstructorDashboard = () => {
+  const { user, loading: authLoading, error: authError } = useAuth();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of role where needed
+};
+
+const AdminDashboard = () => {
+  const { user, loading: authLoading } = useAuth();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of role where needed
+};
+
+const CourseForm = ({ course, onSave, onCancel, isEditing }) => {
+  const { user, loading: authLoading } = useAuth();
+  // ... rest of the component ...
+  // Use user?.normalizedRole instead of role where needed
+};
+
+const ProfileRedirect = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading) {
+      const role = user?.normalizedRole;
+      if (!role) {
+        navigate("/login");
+      } else if (role === "admin") {
+        navigate("/admin/profile");
+      } else if (role === "instructor") {
+        navigate("/instructor/profile");
+      } else {
+        navigate("/student/profile");
+      }
+    }
+  }, [loading, user, navigate]);
+
+  return <LoadingSpinner />;
+};
+
+const MessagesRedirect = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading) {
+      const role = user?.normalizedRole;
+      if (!role) {
+        navigate("/login");
+      } else if (role === "admin") {
+        navigate("/admin/messages");
+      } else if (role === "instructor") {
+        navigate("/instructor/messages");
+      } else {
+        navigate("/student/messages");
+      }
+    }
+  }, [loading, user, navigate]);
+
+  return <LoadingSpinner />;
+};
+
+const EditProfileRedirect = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading) {
+      const role = user?.normalizedRole;
+      if (!role) {
+        navigate("/login");
+      } else if (role === "admin") {
+        navigate("/admin/edit-profile");
+      } else if (role === "instructor") {
+        navigate("/instructor/edit-profile");
+      } else {
+        navigate("/student/edit-profile");
+      }
+    }
+  }, [loading, user, navigate]);
+
+  return <LoadingSpinner />;
+};
+
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, loading, isAuthenticated } = useAuth();
+
+  if (loading) {
+    console.log("[ProtectedRoute] Loading auth state...");
+    return <LoadingSpinner />;
+  }
+
+  const userRole = user?.normalizedRole;
+  console.log(
+    `[ProtectedRoute] Location: ${location.pathname}, Role Check: userRole='${userRole}', isAllowed=${isAuthenticated && allowedRoles.includes(userRole)}`
+  );
+
+  if (!isAuthenticated || (allowedRoles && !allowedRoles.includes(userRole))) {
+    console.log(
+      `[ProtectedRoute] Redirecting: isAuthenticated=${isAuthenticated}, allowedRoles=${allowedRoles}, userRole=${userRole}`
+    );
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+export { EditProfile, InstructorCourseManagement, CourseForm, InstructorDashboard, AdminDashboard, EditProfileRedirect, ProtectedRoute }; 

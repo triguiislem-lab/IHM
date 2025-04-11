@@ -5,7 +5,6 @@ import { getCachedData, setCachedData } from '../utils/cacheUtils';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -19,7 +18,6 @@ export const useAuth = () => {
       if (cachedData) {
         
         setUser(cachedData);
-        setUserRole(cachedData.normalizedRole || 'student');
         return;
       }
 
@@ -49,14 +47,13 @@ export const useAuth = () => {
         const userInfo = {
           ...firebaseUser,
           ...userData,
-          normalizedRole: role // Ajouter un champ normalisé pour le rôle
+          normalizedRole: role
         };
 
         // Mettre en cache les informations de l'utilisateur
         setCachedData(cacheKey, userInfo);
 
         setUser(userInfo);
-        setUserRole(role);
       } else {
         // Créer un profil par défaut si l'utilisateur n'existe pas
         const defaultUser = {
@@ -69,7 +66,6 @@ export const useAuth = () => {
         };
 
         setUser(defaultUser);
-        setUserRole('student');
       }
     } catch (error) {
       setError(error);
@@ -87,7 +83,6 @@ export const useAuth = () => {
           await fetchUserInfo(firebaseUser);
         } else {
           setUser(null);
-          setUserRole(null);
         }
       } catch (error) {
         
@@ -101,8 +96,9 @@ export const useAuth = () => {
   }, [fetchUserInfo]);
 
   const getDashboardPath = () => {
-    if (!userRole) return '/login';
-    switch (userRole.toLowerCase()) {
+    const role = user?.normalizedRole;
+    if (!role) return '/login';
+    switch (role.toLowerCase()) {
       case 'admin':
         return '/admin/dashboard';
       case 'instructor':
@@ -116,13 +112,12 @@ export const useAuth = () => {
 
   return {
     user,
-    userRole,
     loading,
     error,
     getDashboardPath,
     isAuthenticated: !!user,
-    isAdmin: userRole === 'admin',
-    isInstructor: userRole === 'instructor',
-    isStudent: userRole === 'student'
+    isAdmin: user?.normalizedRole === 'admin',
+    isInstructor: user?.normalizedRole === 'instructor',
+    isStudent: user?.normalizedRole === 'student'
   };
 };

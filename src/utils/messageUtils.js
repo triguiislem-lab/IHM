@@ -84,13 +84,15 @@ export const getReceivedMessages = async (userId) => {
     }
 
     const messagesRef = ref(database, 'elearning/messages');
-    const receivedMessagesQuery = query(
-        messagesRef,
-        orderByChild('recipientId'),
-        equalTo(userId)
-    );
+    // Remove query - Fetch all messages
+    // const receivedMessagesQuery = query(
+    //     messagesRef,
+    //     orderByChild('recipientId'),
+    //     equalTo(userId)
+    // );
 
-    const snapshot = await get(receivedMessagesQuery);
+    // Fetch all messages
+    const snapshot = await get(messagesRef); 
 
     if (!snapshot.exists()) {
       return [];
@@ -100,16 +102,21 @@ export const getReceivedMessages = async (userId) => {
     const messagesArray = Object.entries(messagesData).map(([id, message]) => ({
       id,
       ...message,
-      timestamp: message.timestamp,
+      timestamp: message.timestamp, // Ensure timestamp exists
     }));
 
-    const filteredMessages = messagesArray.filter(message => !message.deletedByRecipient);
+    // Filter client-side
+    const filteredMessages = messagesArray.filter(message => 
+        message.recipientId === userId && 
+        !message.deletedByRecipient
+    );
 
-    filteredMessages.sort((a, b) => b.timestamp - a.timestamp);
+    // Sort by timestamp descending
+    filteredMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     return filteredMessages;
   } catch (error) {
-    
+    console.error("Error fetching received messages:", error);
     throw error;
   }
 };
@@ -127,13 +134,15 @@ export const getSentMessages = async (userId) => {
     }
 
     const messagesRef = ref(database, 'elearning/messages');
-     const sentMessagesQuery = query(
-        messagesRef,
-        orderByChild('senderId'),
-        equalTo(userId)
-    );
+    // Remove query - Fetch all messages
+    //  const sentMessagesQuery = query(
+    //     messagesRef,
+    //     orderByChild('senderId'),
+    //     equalTo(userId)
+    // );
 
-    const snapshot = await get(sentMessagesQuery);
+    // Fetch all messages
+    const snapshot = await get(messagesRef);
 
     if (!snapshot.exists()) {
       return [];
@@ -143,16 +152,21 @@ export const getSentMessages = async (userId) => {
     const messagesArray = Object.entries(messagesData).map(([id, message]) => ({
       id,
       ...message,
-      timestamp: message.timestamp,
+      timestamp: message.timestamp, // Ensure timestamp exists
     }));
 
-    const filteredMessages = messagesArray.filter(message => !message.deletedBySender);
+    // Filter client-side
+    const filteredMessages = messagesArray.filter(message => 
+        message.senderId === userId && 
+        !message.deletedBySender
+    );
 
-    filteredMessages.sort((a, b) => b.timestamp - a.timestamp);
+    // Sort by timestamp descending
+    filteredMessages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     return filteredMessages;
   } catch (error) {
-    
+    console.error("Error fetching sent messages:", error);
     throw error;
   }
 };
@@ -243,22 +257,26 @@ export const deleteMessage = async (userId, messageId, messageType) => {
  * @returns {Promise<Object>} - Listes d'utilisateurs par rôle { admins: [], instructors: [], students: [] }
  */
 export const getAvailableRecipients = async (userId, userRole) => {
+  console.log(`[getAvailableRecipients] Called for user: ${userId}, role: ${userRole}`); // Log entry
   try {
-    // const auth = getAuth(); // Removed
     const database = getDatabase();
     if (!userId || !userRole) { // Check passed arguments
+      console.error("[getAvailableRecipients] User ID or Role missing");
       throw new Error('User ID ou Role manquant pour récupérer les destinataires');
     }
 
     // 1. Fetch all users
     const usersRef = ref(database, 'elearning/users');
-    const usersSnapshot = await get(usersRef);
+    const snapshot = await get(usersRef);
 
-    if (!usersSnapshot.exists()) {
+    if (!snapshot.exists()) {
+      console.log("[getAvailableRecipients] No users found at elearning/users");
       return { admins: [], instructors: [], students: [] };
     }
 
-    const usersData = usersSnapshot.val();
+    const usersData = snapshot.val();
+    console.log("[getAvailableRecipients] Raw usersData:", usersData); // Log raw data
+
     // 2. Filter out the current user and format
     const allOtherUsers = Object.entries(usersData)
         .filter(([id]) => id !== userId)
@@ -267,6 +285,7 @@ export const getAvailableRecipients = async (userId, userRole) => {
             ...user,
             displayName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Utilisateur'
         }));
+    console.log("[getAvailableRecipients] Filtered allOtherUsers:", allOtherUsers); // Log filtered users
 
     // 3. Separate users by role
     const admins = allOtherUsers.filter(user => user.role === 'admin');
@@ -274,24 +293,26 @@ export const getAvailableRecipients = async (userId, userRole) => {
     const students = allOtherUsers.filter(user => user.role === 'student');
 
     // 4. Determine final lists based on userRole
+    let finalRecipients = { admins: [], instructors: [], students: [] };
 
     // 4a. Admin can message everyone else
     if (userRole === 'admin') {
-      return { admins, instructors, students };
+      finalRecipients = { admins, instructors, students };
     }
 
     // 4b. Instructor can message Admins and their enrolled Students
     if (userRole === 'instructor') {
       let enrolledStudentIds = new Set();
+      console.log(`[getAvailableRecipients] Fetching courses for instructor: ${userId}`);
       
-      // Get instructor's courses first (efficiently, if possible)
-      // Using a less efficient query for now: filter all courses client-side
       const coursesRef = ref(database, 'elearning/courses');
       const coursesSnapshot = await get(query(coursesRef, orderByChild('instructorId'), equalTo(userId)));
       
       if (coursesSnapshot.exists()) {
           const instructorCoursesData = coursesSnapshot.val();
+          console.log("[getAvailableRecipients] Instructor's courses data:", instructorCoursesData);
           const courseIds = Object.keys(instructorCoursesData);
+          console.log("[getAvailableRecipients] Instructor's course IDs:", courseIds);
 
           // For each course, get enrollments (can be parallelized)
           const enrollmentPromises = courseIds.map(courseId => 
@@ -299,29 +320,37 @@ export const getAvailableRecipients = async (userId, userRole) => {
           );
           const enrollmentSnapshots = await Promise.all(enrollmentPromises);
 
-          enrollmentSnapshots.forEach(snapshot => {
+          enrollmentSnapshots.forEach((snapshot, index) => {
               if (snapshot.exists()) {
                   const courseEnrollments = snapshot.val();
+                   console.log(`[getAvailableRecipients] Enrollments for course ${courseIds[index]}:`, courseEnrollments);
                   Object.keys(courseEnrollments).forEach(studentId => enrolledStudentIds.add(studentId));
+              } else {
+                 console.log(`[getAvailableRecipients] No enrollments found for course ${courseIds[index]}`);
               }
           });
+      } else {
+         console.log("[getAvailableRecipients] No courses found for this instructor.");
       }
 
       const enrolledStudents = students.filter(student => enrolledStudentIds.has(student.id));
-      return { admins, instructors: [], students: enrolledStudents }; // Instructors don't message other instructors usually
+      console.log("[getAvailableRecipients] Final enrolled students for instructor:", enrolledStudents);
+      finalRecipients = { admins, instructors: [], students: enrolledStudents }; // Instructors don't message other instructors usually
     }
 
     // 4c. Student can message Admins and Instructors of their courses
     if (userRole === 'student') {
        let courseInstructorIds = new Set();
-
-       // Get student's enrollments
+        console.log(`[getAvailableRecipients] Fetching enrollments for student: ${userId}`);
+       
        const studentEnrollmentsRef = ref(database, `elearning/enrollments/byUser/${userId}`);
        const enrollmentsSnapshot = await get(studentEnrollmentsRef);
 
        if (enrollmentsSnapshot.exists()) {
            const enrollmentsData = enrollmentsSnapshot.val();
+            console.log("[getAvailableRecipients] Student's enrollments data:", enrollmentsData);
            const enrolledCourseIds = Object.keys(enrollmentsData);
+            console.log("[getAvailableRecipients] Student's enrolled course IDs:", enrolledCourseIds);
 
            // Get instructor IDs for these courses (can be parallelized)
            const coursePromises = enrolledCourseIds.map(courseId => 
@@ -329,23 +358,29 @@ export const getAvailableRecipients = async (userId, userRole) => {
            );
            const courseSnapshots = await Promise.all(coursePromises);
 
-           courseSnapshots.forEach(snapshot => {
+           courseSnapshots.forEach((snapshot, index) => {
                if (snapshot.exists()) {
-                   courseInstructorIds.add(snapshot.val());
+                   const instructorId = snapshot.val();
+                    console.log(`[getAvailableRecipients] Instructor for course ${enrolledCourseIds[index]}:`, instructorId);
+                   courseInstructorIds.add(instructorId);
+               } else {
+                  console.log(`[getAvailableRecipients] No instructor found for course ${enrolledCourseIds[index]}`);
                }
            });
+       } else {
+          console.log("[getAvailableRecipients] No enrollments found for this student.");
        }
 
        const courseInstructors = instructors.filter(instructor => courseInstructorIds.has(instructor.id));
-       return { admins, instructors: courseInstructors, students: [] };
+        console.log("[getAvailableRecipients] Final instructors for student:", courseInstructors);
+       finalRecipients = { admins, instructors: courseInstructors, students: [] };
     }
 
-    // Default: Should not happen if role is valid
-    
-    return { admins: [], instructors: [], students: [] };
+    console.log("[getAvailableRecipients] Returning final recipients:", finalRecipients); // Log final result
+    return finalRecipients;
 
   } catch (error) {
-    
+    console.error("[getAvailableRecipients] Error:", error); // Log any error
     throw error; // Rethrow error to be handled by the calling component
   }
 };

@@ -8,7 +8,7 @@ import { getAvatarUrl } from "../../utils/avatarUtils";
 import LoadingSpinner from "../../components/Common/LoadingSpinner";
 
 const EditProfile = () => {
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -77,7 +77,7 @@ const EditProfile = () => {
         updatedAt: new Date().toISOString(),
       };
 
-      if (role === "instructor") {
+      if (user?.normalizedRole === "instructor") {
         userDataToUpdate.expertise = formData.expertise || "";
       }
 
@@ -118,7 +118,7 @@ const EditProfile = () => {
 
   const currentAvatarUrl = formData.avatar || getAvatarUrl(user.email);
 
-  const isInstructor = role === "instructor";
+  const isInstructor = user?.normalizedRole === "instructor";
 
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 bg-gray-50">
@@ -154,7 +154,7 @@ const EditProfile = () => {
                     {user.displayName ||
                       `${formData.firstName} ${formData.lastName}`}
                   </h2>
-                  <p className="text-sm text-indigo-100 capitalize">{role}</p>
+                  <p className="text-sm text-indigo-100 capitalize">{user?.normalizedRole}</p>
                 </div>
               </div>
             </div>

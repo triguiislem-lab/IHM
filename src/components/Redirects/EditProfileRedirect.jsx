@@ -1,33 +1,28 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import LoadingSpinner from '../../components/Common/LoadingSpinner';
 
 const EditProfileRedirect = () => {
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { userRole, loading } = useAuth();
 
   useEffect(() => {
-    // Only navigate when loading is done AND userRole is determined (not null)
-    if (!loading && userRole) { 
-      if (userRole === 'admin') {
-        navigate('/admin/edit-profile', { replace: true });
-      } else if (userRole === 'instructor') {
-        navigate('/instructor/edit-profile', { replace: true });
-      } else if (userRole === 'student') {
-        navigate('/student/edit-profile', { replace: true });
+    if (!loading) {
+      const role = user?.normalizedRole;
+      if (!role) {
+        navigate("/login");
+      } else if (role === "admin") {
+        navigate("/admin/edit-profile");
+      } else if (role === "instructor") {
+        navigate("/instructor/edit-profile");
       } else {
-        // Role not recognized - Navigate to homepage
-        navigate('/', { replace: true });
+        navigate("/student/edit-profile");
       }
     }
-  }, [userRole, loading, navigate]);
+  }, [loading, user, navigate]);
 
-  // Afficher un indicateur de chargement pendant la redirection
-  return (
-    <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-    </div>
-  );
+  return <LoadingSpinner />;
 };
 
 export default EditProfileRedirect;

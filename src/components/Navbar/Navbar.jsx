@@ -13,9 +13,9 @@ import {
   MdEmail,
 } from "react-icons/md";
 import { getAvatarUrl } from "../../utils/avatarUtils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import ResponsiveMenu from "./ResponsiveMenu.jsx";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { getDatabase, ref, get } from "firebase/database";
 import { fetchCompleteUserInfo } from "../../utils/firebaseUtils";
@@ -55,6 +55,7 @@ const Navbar = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
   const auth = getAuth();
+  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -155,14 +156,16 @@ const Navbar = () => {
     currentMenu = adminMenu;
   }
 
+  // Check if we are in the admin section
+  const isAdminSection = location.pathname.startsWith('/admin/');
+
+  // Determine if main links should be shown
+  const showMainLinks = !(userType === 'admin' && isAdminSection);
+
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2, delay: 0.1 }}
-      >
-        <div className="container flex justify-between items-center py-6">
+    <nav className="bg-white shadow-md fixed top-0 left-0 w-full z-50">
+      <div className="container mx-auto py-3 px-4 md:px-6">
+        <div className="flex justify-between items-center">
           {/* Logo section */}
           <div className="text-2xl flex items-center gap-2 font-bold">
             <MdComputer className="text-3xl text-secondary" />
@@ -172,7 +175,7 @@ const Navbar = () => {
           {/* Menu section - Conditionally render links */}
           <div className="hidden lg:block">
             <ul className="flex items-center gap-6">
-              {currentMenu.map((item) => ( // Use the determined currentMenu
+              {showMainLinks && currentMenu.map((item) => ( // Conditionally render main links
                 <li key={item.id}>
                   <Link
                     to={item.link}
@@ -289,20 +292,22 @@ const Navbar = () => {
              </button>
            </div>
         </div>
-      </motion.div>
-
-      {/* Responsive Menu Component - Needs updates to reflect role-based menus */}
-      <ResponsiveMenu
-        isOpen={isOpen}
-        closeMenu={() => setIsOpen(false)}
-        user={user}
-        userType={userType}
-        userInfo={userInfo}
-        handleLogout={handleLogout}
-        // Pass the correct menu based on role
-        menuItems={currentMenu} 
-      />
-    </>
+      </div>
+      {/* Responsive Menu Portal */}
+      <AnimatePresence>
+        {isOpen && (
+          <ResponsiveMenu
+            isOpen={isOpen}
+            closeMenu={() => setIsOpen(false)}
+            user={user}
+            userType={userType}
+            userInfo={userInfo}
+            handleLogout={handleLogout}
+            menuItems={showMainLinks ? currentMenu : []} // Pass empty array if main links should be hidden
+          />
+        )}
+      </AnimatePresence>
+    </nav>
   );
 };
 
